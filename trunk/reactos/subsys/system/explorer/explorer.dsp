@@ -45,7 +45,7 @@ RSC=rc.exe
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /W3 /GX /O2 /D "WIN32" /D "NDEBUG" /D "_CONSOLE" /D "_MBCS" /YX /FD /c
-# ADD CPP /nologo /W3 /GX /O2 /D "NDEBUG" /D "WIN32" /D "UNICODE" /D "_ROS_" /YX /FD /c
+# ADD CPP /nologo /MT /W3 /GX /O2 /D "NDEBUG" /D "WIN32" /D "_ROS_" /YX /FD /c
 # ADD BASE RSC /l 0x407 /d "NDEBUG"
 # ADD RSC /l 0x407 /d "NDEBUG"
 BSC32=bscmake.exe
@@ -53,7 +53,8 @@ BSC32=bscmake.exe
 # ADD BSC32 /nologo
 LINK32=link.cmd
 # ADD BASE LINK32 kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:console /machine:I386
-# ADD LINK32 user32.lib gdi32.lib advapi32.lib comctl32.lib shell32.lib /nologo /subsystem:console /machine:I386
+# ADD LINK32 user32.lib gdi32.lib advapi32.lib comctl32.lib shell32.lib ole32.lib /nologo /subsystem:windows /machine:I386
+# SUBTRACT LINK32 /pdb:none
 
 !ELSEIF  "$(CFG)" == "explorer - Win32 Debug"
 
@@ -69,7 +70,7 @@ LINK32=link.cmd
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /W3 /Gm /GX /ZI /Od /D "WIN32" /D "_DEBUG" /D "_CONSOLE" /D "_MBCS" /YX /FD /GZ /c
-# ADD CPP /nologo /W3 /Gm /GX /ZI /Od /D "_DEBUG" /D "WIN32" /D "UNICODE" /D "_ROS_" /FR /YX /FD /GZ /c
+# ADD CPP /nologo /MTd /W3 /Gm /GX /ZI /Od /D "_DEBUG" /D "WIN32" /D "_ROS_" /FR /YX /FD /GZ /c
 # ADD BASE RSC /l 0x407 /d "_DEBUG"
 # ADD RSC /l 0x407 /d "_DEBUG"
 BSC32=bscmake.exe
@@ -77,7 +78,8 @@ BSC32=bscmake.exe
 # ADD BSC32 /nologo
 LINK32=link.cmd
 # ADD BASE LINK32 kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:console /debug /machine:I386 /pdbtype:sept
-# ADD LINK32 user32.lib gdi32.lib advapi32.lib comctl32.lib shell32.lib /nologo /subsystem:console /debug /machine:I386 /pdbtype:sept
+# ADD LINK32 user32.lib gdi32.lib advapi32.lib comctl32.lib shell32.lib ole32.lib /nologo /subsystem:windows /debug /machine:I386 /pdbtype:sept
+# SUBTRACT LINK32 /pdb:none
 
 !ELSEIF  "$(CFG)" == "explorer - Win32 Debug Release"
 
@@ -94,7 +96,7 @@ LINK32=link.cmd
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /W3 /GX /O2 /D "NDEBUG" /D "WIN32" /D "_ROS_" /YX /FD /c
-# ADD CPP /nologo /W3 /GX /Zi /O2 /D "NDEBUG" /D "WIN32" /D "UNICODE" /D "_ROS_" /FR /YX /FD /c
+# ADD CPP /nologo /MT /W3 /GX /Zi /O2 /D "NDEBUG" /D "WIN32" /D "_ROS_" /FR /YX /FD /c
 # ADD BASE RSC /l 0x407 /d "NDEBUG"
 # ADD RSC /l 0x407 /d "NDEBUG"
 BSC32=bscmake.exe
@@ -102,7 +104,8 @@ BSC32=bscmake.exe
 # ADD BSC32 /nologo
 LINK32=link.cmd
 # ADD BASE LINK32 user32.lib gdi32.lib advapi32.lib comctl32.lib shell32.lib /nologo /subsystem:console /machine:I386
-# ADD LINK32 user32.lib gdi32.lib advapi32.lib comctl32.lib shell32.lib /nologo /subsystem:console /debug /machine:I386
+# ADD LINK32 user32.lib gdi32.lib advapi32.lib comctl32.lib shell32.lib ole32.lib /nologo /subsystem:windows /debug /machine:I386
+# SUBTRACT LINK32 /pdb:none
 
 !ELSEIF  "$(CFG)" == "explorer - Win32 Unicode Release"
 
@@ -119,7 +122,7 @@ LINK32=link.cmd
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /W3 /GX /O2 /D "NDEBUG" /D "WIN32" /D "UNICODE" /D "_ROS_" /YX /FD /c
-# ADD CPP /nologo /W3 /GX /O2 /D "NDEBUG" /D "WIN32" /D "UNICODE" /D "_ROS_" /YX /FD /c
+# ADD CPP /nologo /MT /W3 /GX /O2 /D "NDEBUG" /D "WIN32" /D "UNICODE" /D "_ROS_" /YX /FD /c
 # ADD BASE RSC /l 0x407 /d "NDEBUG"
 # ADD RSC /l 0x407 /d "NDEBUG"
 BSC32=bscmake.exe
@@ -127,7 +130,8 @@ BSC32=bscmake.exe
 # ADD BSC32 /nologo
 LINK32=link.cmd
 # ADD BASE LINK32 user32.lib gdi32.lib advapi32.lib comctl32.lib shell32.lib /nologo /subsystem:console /machine:I386
-# ADD LINK32 user32.lib gdi32.lib advapi32.lib comctl32.lib shell32.lib /nologo /subsystem:console /machine:I386
+# ADD LINK32 user32.lib gdi32.lib advapi32.lib comctl32.lib shell32.lib ole32.lib /nologo /subsystem:windows /machine:I386
+# SUBTRACT LINK32 /pdb:none
 
 !ELSEIF  "$(CFG)" == "explorer - Win32 Unicode Debug"
 
@@ -144,7 +148,7 @@ LINK32=link.cmd
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /W3 /Gm /GX /ZI /Od /D "_DEBUG" /D "WIN32" /D "UNICODE" /D "_ROS_" /FR /YX /FD /GZ /c
-# ADD CPP /nologo /W3 /Gm /GX /ZI /Od /D "_DEBUG" /D "WIN32" /D "UNICODE" /D "_ROS_" /FR /YX /FD /GZ /c
+# ADD CPP /nologo /MTd /W3 /Gm /GX /ZI /Od /D "_DEBUG" /D "WIN32" /D "UNICODE" /D "_ROS_" /FR /YX /FD /GZ /c
 # ADD BASE RSC /l 0x407 /d "_DEBUG"
 # ADD RSC /l 0x407 /d "_DEBUG"
 BSC32=bscmake.exe
@@ -152,7 +156,8 @@ BSC32=bscmake.exe
 # ADD BSC32 /nologo
 LINK32=link.cmd
 # ADD BASE LINK32 user32.lib gdi32.lib advapi32.lib comctl32.lib shell32.lib /nologo /subsystem:console /debug /machine:I386 /pdbtype:sept
-# ADD LINK32 user32.lib gdi32.lib advapi32.lib comctl32.lib shell32.lib /nologo /subsystem:console /debug /machine:I386 /pdbtype:sept
+# ADD LINK32 user32.lib gdi32.lib advapi32.lib comctl32.lib shell32.lib ole32.lib /nologo /subsystem:windows /debug /machine:I386 /pdbtype:sept
+# SUBTRACT LINK32 /pdb:none
 
 !ENDIF 
 
@@ -163,12 +168,56 @@ LINK32=link.cmd
 # Name "explorer - Win32 Debug Release"
 # Name "explorer - Win32 Unicode Release"
 # Name "explorer - Win32 Unicode Debug"
-# Begin Group "res"
+# Begin Group "utility"
 
 # PROP Default_Filter ""
 # Begin Source File
 
-SOURCE=.\De.rc
+SOURCE=.\utility\dragdropimpl.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\utility\dragdropimpl.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\utility\shellbrowserimpl.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\utility\shellclasses.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\utility\shellclasses.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\utility\treedroptarget.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\utility\utility.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\utility\utility.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\utility\window.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\utility\window.h
+# End Source File
+# End Group
+# Begin Group "resources"
+
+# PROP Default_Filter ""
+# Begin Source File
+
+SOURCE=.\de.rc
 
 !IF  "$(CFG)" == "explorer - Win32 Release"
 
@@ -201,7 +250,7 @@ SOURCE=.\res\drivebar.bmp
 # End Source File
 # Begin Source File
 
-SOURCE=.\En.rc
+SOURCE=.\en.rc
 
 !IF  "$(CFG)" == "explorer - Win32 Release"
 
@@ -230,11 +279,19 @@ SOURCE=.\En.rc
 # End Source File
 # Begin Source File
 
-SOURCE=.\res\images.bmp
+SOURCE=.\res\explorer.ico
 # End Source File
 # Begin Source File
 
-SOURCE=.\include\resource.h
+SOURCE=.\explorer_intres.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\explorer_intres.rc
+# End Source File
+# Begin Source File
+
+SOURCE=.\res\images.bmp
 # End Source File
 # Begin Source File
 
@@ -269,50 +326,126 @@ SOURCE=.\resource.rc
 
 SOURCE=.\res\toolbar.bmp
 # End Source File
-# Begin Source File
-
-SOURCE=.\res\winefile.ico
-# End Source File
-# Begin Source File
-
-SOURCE=.\winefile.rc
-# End Source File
 # End Group
-# Begin Group "include"
+# Begin Group "taskbar"
 
 # PROP Default_Filter ""
 # Begin Source File
 
-SOURCE=.\include\explorer.h
+SOURCE=.\taskbar\ex_bar.c
 # End Source File
 # Begin Source File
 
-SOURCE=.\include\license.h
+SOURCE=.\taskbar\ex_bar.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\include\winefile.h
+SOURCE=.\taskbar\ex_clock.c
+# End Source File
+# Begin Source File
+
+SOURCE=.\taskbar\ex_menu.c
+# End Source File
+# Begin Source File
+
+SOURCE=.\taskbar\ex_shutdwn.c
+# End Source File
+# End Group
+# Begin Group "desktop"
+
+# PROP Default_Filter ""
+# Begin Source File
+
+SOURCE=.\desktop\desktop.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\desktop\desktop.h
 # End Source File
 # End Group
 # Begin Source File
 
-SOURCE=.\desktop.c
+SOURCE=.\shell\entries.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=.\ex_bar.c
+SOURCE=.\shell\entries.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\splitpath.c
+SOURCE=.\explorer.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=.\startup.c
+SOURCE=.\explorer.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\winefile.c
+SOURCE=.\externals.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\shell\filechild.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\shell\filechild.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\globals.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\shell\mainframe.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\shell\mainframe.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\shell\pane.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\shell\pane.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\shell\shellbrowser.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\shell\shellbrowser.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\shell\shellfs.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\shell\shellfs.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\shell\startup.c
+# End Source File
+# Begin Source File
+
+SOURCE=.\shell\unixfs.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\shell\unixfs.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\shell\winfs.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\shell\winfs.h
 # End Source File
 # End Target
 # End Project
