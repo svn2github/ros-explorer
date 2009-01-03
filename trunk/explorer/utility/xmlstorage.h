@@ -418,6 +418,9 @@ extern const XS_String XS_KEY;
 extern const XS_String XS_VALUE;
 extern const XS_String XS_PROPERTY;
 
+#define CDATA_START "<![CDATA["
+#define CDATA_END "]]>"
+
 
 #ifndef XS_STRING_UTF8
 
@@ -820,6 +823,7 @@ struct XPathElement
 
 struct XPath : std::list<XPathElement>
 {
+	XPath() : _absolute(false) {}
 	XPath(const char* path) {init(path);}
 	XPath(const std::string path) {init(path.c_str());}
 
@@ -1183,7 +1187,7 @@ struct XMLNode : public XS_String
 	 /// set content of a subnode specified by an XPath expression
 	bool set_sub_content(const XPath& xpath, const XS_String& s, bool cdata=false)
 	{
-		XMLNode* node = find_relative(xpath);
+		XMLNode* node = create_relative(xpath);
 
 		if (node) {
 			node->set_content(s, cdata);
@@ -1231,6 +1235,20 @@ struct XMLNode : public XS_String
 	 /// copy matching tree nodes using the given XPath filter expression
 	bool filter(const XPath& xpath, XMLNode& target) const;
 
+	 /// XPath find function (const)
+	const XMLNode* find_relative(const XPath& xpath) const;
+
+	 /// XPath find function
+	XMLNode* find_relative(const XPath& xpath);
+
+	XMLNode* get_first_child() const
+	{
+		if (!_children.empty())
+			return _children.front();
+		else
+			return NULL;
+	}
+
 protected:
 	Children _children;
 	AttributeMap _attributes;
@@ -1245,20 +1263,6 @@ protected:
 #endif
 
 	bool	_cdata_content;
-
-	XMLNode* get_first_child() const
-	{
-		if (!_children.empty())
-			return _children.front();
-		else
-			return NULL;
-	}
-
-	 /// XPath find function (const)
-	const XMLNode* find_relative(const XPath& xpath) const;
-
-	 /// XPath find function
-	XMLNode* find_relative(const XPath& xpath);
 
 	 /// relative XPath create function
 	XMLNode* create_relative(const XPath& xpath);
@@ -1590,6 +1594,19 @@ struct XMLPos
 			return false;
 	}
 
+	 /// iterate to the next matching child
+	bool iterate(const XS_String& child_name, size_t& cnt)
+	{
+		XMLNode* node = XPathElement(child_name, cnt).find(_cur);
+
+		if (node) {
+			go_to(node);
+			++cnt;
+			return true;
+		} else
+			return false;
+	}
+
 	 /// move to the position defined by xpath in XML tree
 	bool go(const XPath& xpath);
 
@@ -1733,6 +1750,8 @@ struct XMLPos
 		{set_property(key, XS_String(value), name);}
 
 protected:
+	friend struct const_XMLPos;	// access to _root
+
 	XMLNode* _root;
 	XMLNode* _cur;
 	std::stack<XMLNode*> _stack;
@@ -1756,6 +1775,12 @@ struct const_XMLPos
 	}
 
 	const_XMLPos(const const_XMLPos& other)
+	 :	_root(other._root),
+		_cur(other._cur)
+	{	// don't copy _stack
+	}
+
+	const_XMLPos(const XMLPos& other)
 	 :	_root(other._root),
 		_cur(other._cur)
 	{	// don't copy _stack
@@ -1813,6 +1838,19 @@ struct const_XMLPos
 
 		if (node) {
 			go_to(node);
+			return true;
+		} else
+			return false;
+	}
+
+	 /// iterate to the next matching child
+	bool iterate(const XS_String& child_name, size_t& cnt)
+	{
+		const XMLNode* node = XPathElement(child_name, cnt).const_find(_cur);
+
+		if (node) {
+			go_to(node);
+			++cnt;
 			return true;
 		} else
 			return false;
@@ -2666,6 +2704,11 @@ struct XMLDoc : public XMLNode
 		return read(reader, system_id);
 	}
 
+	bool read_buffer(const std::string& in, const std::string& system_id=std::string())
+	{
+		return read_buffer(in.c_str(), in.length(), system_id);
+	}
+
 #else // XS_USE_XERCES
 
 	bool read_file(LPCTSTR path)
@@ -2682,9 +2725,12 @@ struct XMLDoc : public XMLNode
 
 	bool read_buffer(const char* buffer, size_t len, const std::string& system_id=std::string())
 	{
-		std::istringstream in(std::string(buffer, len));
+		return read_buffer(std::string(buffer, len), system_id);
+	}
 
-		return read(in, system_id);
+	bool read_buffer(const std::string& buffer, const std::string& system_id=std::string())
+	{
+		return read(std::istringstream(buffer), system_id);
 	}
 
 	bool read(std::istream& in, const std::string& system_id=std::string())
@@ -2880,7 +2926,7 @@ struct XMLWriter
 protected:
 	tofstream*		_pofstream;
 	std::ostream&	_out;
-	const XMLFormat&_format;
+	XMLFormat		_format;
 
 	typedef XMLNode::AttributeMap AttrMap;
 
