@@ -49,20 +49,20 @@ IDB_SDI                 BITMAP  MOVEABLE PURE   "res/sdi.bmp"
 // Accelerator
 //
 
-IDA_EXPLORER ACCELERATORS MOVEABLE PURE
+IDA_EXPLORER ACCELERATORS MOVEABLE PURE 
 BEGIN
-    "S",            ID_VIEW_FULLSCREEN,     VIRTKEY, SHIFT, CONTROL,
+    "S",            ID_VIEW_FULLSCREEN,     VIRTKEY, SHIFT, CONTROL, 
                                                     NOINVERT
     VK_F5,          ID_REFRESH,             VIRTKEY, NOINVERT
     "X",            ID_FILE_EXIT,           VIRTKEY, ALT, NOINVERT
 END
 
-IDA_SEARCH_PROGRAM ACCELERATORS MOVEABLE PURE
+IDA_SEARCH_PROGRAM ACCELERATORS MOVEABLE PURE 
 BEGIN
     VK_F5,          ID_REFRESH,             VIRTKEY, NOINVERT
 END
 
-IDA_TRAYNOTIFY ACCELERATORS MOVEABLE PURE
+IDA_TRAYNOTIFY ACCELERATORS MOVEABLE PURE 
 BEGIN
     VK_F5,          ID_REFRESH,             VIRTKEY, NOINVERT
 END
@@ -74,18 +74,17 @@ END
 // TEXTINCLUDE
 //
 
-1 TEXTINCLUDE MOVEABLE PURE
+1 TEXTINCLUDE MOVEABLE PURE 
 BEGIN
     "resource.h\0"
 END
 
-2 TEXTINCLUDE MOVEABLE PURE
+2 TEXTINCLUDE MOVEABLE PURE 
 BEGIN
-    "#include <windows.h>\r\n"
-    "\0"
+    "#include <windows.h>\r\0"
 END
 
-3 TEXTINCLUDE MOVEABLE PURE
+3 TEXTINCLUDE MOVEABLE PURE 
 BEGIN
     "#ifndef ROSSHELL\r\n"
     "IDB_IMAGES BITMAP DISCARDABLE ""res/images.bmp""\r\n"
@@ -134,8 +133,7 @@ BEGIN
     "#else\r\n"
     "//#include ""explorer-cn-msvc.rc""\r\n"
     "#include ""explorer-bn.rc""\r\n"
-    "#endif\r\n"
-    "\0"
+    "#endif\r\0"
 END
 
 #endif    // APSTUDIO_INVOKED
@@ -201,7 +199,7 @@ IDB_TOOLBAR BITMAP DISCARDABLE "res/toolbar.bmp"
 #endif
 #ifndef __REACTOS__
 LANGUAGE LANG_NEUTRAL, SUBLANG_NEUTRAL
-STRINGTABLE DISCARDABLE
+STRINGTABLE DISCARDABLE 
 BEGIN
 IDS_VERSION_STR ""
 #ifdef UNICODE
@@ -226,6 +224,7 @@ CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST DISCARDABLE PURE "explorer.exe.ma
 #include "explorer-id.rc"
 #include "explorer-it.rc"
 #include "explorer-jp.rc"
+#include "explorer-ko.rc"
 #include "explorer-nl.rc"
 #include "explorer-no.rc"
 #include "explorer-pl.rc"
@@ -245,5 +244,4 @@ CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST DISCARDABLE PURE "explorer.exe.ma
 
 /////////////////////////////////////////////////////////////////////////////
 #endif    // not APSTUDIO_INVOKED
-
 
