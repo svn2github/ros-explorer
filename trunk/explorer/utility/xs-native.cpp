@@ -40,7 +40,7 @@
 #include <precomp.h>
 
 #ifndef XS_NO_COMMENT
-#define XS_NO_COMMENT	// no #pragma comment(lib, ...) statements in .lib files
+#define XS_NO_COMMENT	// no #pragma comment(lib, ...) statements in .lib files to enable static linking
 #endif
 
 //#include "xmlstorage.h"
