@@ -2004,6 +2004,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\res\restart.ico"
+				>
+			</File>
+			<File
 				RelativePath="res\ros-big.ico"
 				>
 			</File>
