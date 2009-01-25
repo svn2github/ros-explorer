@@ -55,7 +55,7 @@ BEGIN
         MENUITEM "Agrupar Automaticamente",     ID_WINDOW_AUTOSORT
         MENUITEM "Agrupar &Símbolos",           ID_WINDOW_ARRANGE
     END
-    POPUP "Herramientas"
+    POPUP "&Herramientas"
     BEGIN
         MENUITEM "&Opciones",                    ID_TOOLS_OPTIONS
     END

@@ -17,7 +17,7 @@
 
 #if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)
 #ifdef _WIN32
-LANGUAGE LANG_BULGARIAN, SUBLANG_DEFAULT
+LANGUAGE LANG_BULGARIAN, SUBLANG_NEUTRAL
 #pragma code_page(1251)
 #endif //_WIN32
 
@@ -381,9 +381,9 @@ BEGIN
     IDS_DESKTOPBAR_SETTINGS "Настройки на работната площ"
     IDS_DESKTOP             "Работна площ"
     IDS_TASKBAR             "Задачна лента"
-    IDS_NAMECOLUMN          "Name"
-    IDS_PATHCOLUMN          "Path"
-    IDS_MENUCOLUMN          "Menu path"
+    IDS_NAMECOLUMN          "Име"
+    IDS_PATHCOLUMN          "Път"
+    IDS_MENUCOLUMN          "Път на изборника"
 END
 
 #endif    // Bulgarian (Bg) resources

@@ -2,7 +2,7 @@
  //
  // XML storage C++ classes version 1.3
  //
- // Copyright (c) 2004, 2005, 2006, 2007, 2008 Martin Fuchs <martin-fuchs@gmx.net>
+ // Copyright (c) 2004, 2005, 2006, 2007, 2008, 2009 Martin Fuchs <martin-fuchs@gmx.net>
  //
 
  /// \file xmlstorage.h
@@ -60,7 +60,7 @@
 #endif
 
 
-#if _MSC_VER>=1400
+#if _MSC_VER>=1400 // VS2005 or higher
 #ifndef _CRT_SECURE_CPP_OVERLOAD_STANDARD_NAMES
 #define _CRT_SECURE_CPP_OVERLOAD_STANDARD_NAMES			1
 #define _CRT_SECURE_CPP_OVERLOAD_STANDARD_NAMES_COUNT	1
@@ -119,26 +119,32 @@ typedef XMLCh XML_Char;
 
 #ifndef _STRING_DEFINED	// _STRING_DEFINED only allowed if using xmlstorage.cpp embedded in the project
 #if defined(_DEBUG) && defined(_DLL)	// DEBUG version only supported with MSVCRTD
-#if _MSC_VER==1400
+#if _MSC_VER==1500
+#pragma comment(lib, "xmlstorage-vc9d")
+#elif _MSC_VER==1400
 #pragma comment(lib, "xmlstorage-vc8d")
 #else
 #pragma comment(lib, "xmlstorage-vc6d")
 #endif
 #else
 #ifdef _DLL
-#if _MSC_VER==1400
+#if _MSC_VER==1500
+#pragma comment(lib, "xmlstorage-vc9")
+#elif _MSC_VER==1400
 #pragma comment(lib, "xmlstorage-vc8")
 #else
 #pragma comment(lib, "xmlstorage-vc6")
 #endif
 #elif defined(_MT)
-#if _MSC_VER==1400
+#if _MSC_VER==1500
+#pragma comment(lib, "xmlstorage-vc9t")
+#elif _MSC_VER==1400
 #pragma comment(lib, "xmlstorage-vc8t")
 #else
 #pragma comment(lib, "xmlstorage-vc6t")
 #endif
 #else
- // -ML is no more supported by VS2005.
+ // -ML is no more supported since VS2005.
 #pragma comment(lib, "xmlstorage-vc6l")
 #endif
 #endif
@@ -159,9 +165,11 @@ typedef XMLCh XML_Char;
 #include <stdio.h>	// vsnprintf(), snprintf()
 #endif
 
-#else
+#else // _WIN32
 
 #include <wchar.h>
+#include <stdlib.h>
+#include <string.h>	// strcasecmp()
 #include <stdarg.h>
 
 typedef char CHAR;
@@ -199,7 +207,7 @@ typedef const CHAR* LPCTSTR;
 #define _tcsnicmp strncasecmp
 #endif
 
-#endif
+#endif // _WIN32
 
 #ifdef __BORLANDC__
 #define _stricmp stricmp
@@ -2730,10 +2738,12 @@ struct XMLDoc : public XMLNode
 
 	bool read_buffer(const std::string& buffer, const std::string& system_id=std::string())
 	{
-		return read(std::istringstream(buffer), system_id);
+		std::istringstream istr(buffer);
+
+		return read_stream(istr, system_id);
 	}
 
-	bool read(std::istream& in, const std::string& system_id=std::string())
+	bool read_stream(std::istream& in, const std::string& system_id=std::string())
 	{
 		XMLReader reader(this, in);
 

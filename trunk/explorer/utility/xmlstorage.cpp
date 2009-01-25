@@ -2,7 +2,7 @@
  //
  // XML storage C++ classes version 1.3
  //
- // Copyright (c) 2004, 2005, 2006, 2007, 2008 Martin Fuchs <martin-fuchs@gmx.net>
+ // Copyright (c) 2004, 2005, 2006, 2007, 2008, 2009 Martin Fuchs <martin-fuchs@gmx.net>
  //
 
  /// \file xmlstorage.cpp
@@ -37,12 +37,13 @@
 
 */
 
+#include <precomp.h>
+
 #ifndef XS_NO_COMMENT
 #define XS_NO_COMMENT	// no #pragma comment(lib, ...) statements in .lib files
 #endif
 
 //#include "xmlstorage.h"
-#include <precomp.h>
 
 
 namespace XMLStorage {
