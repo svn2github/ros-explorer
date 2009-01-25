@@ -416,7 +416,7 @@ int MainFrameBase::Command(int id, int code)
 		break;
 
 	  case ID_EXPLORER_FAQ:
-		launch_file(_hwnd, TEXT("http://www.sky.franken.de/explorer/"), SW_SHOW);
+		launch_file(_hwnd, TEXT("http://www.foxplanet.de/explorer/"), SW_SHOW);
 		break;
 
 	  case IDW_ADDRESSBAR:
@@ -1165,7 +1165,7 @@ int MDIMainFrame::Command(int id, int code)
 		break;
 
 	  case ID_EXPLORER_FAQ:
-		create_webchildwindow(WebChildWndInfo(_hmdiclient, TEXT("http://www.sky.franken.de/explorer/")));
+		create_webchildwindow(WebChildWndInfo(_hmdiclient, TEXT("http://www.foxplanet.de/explorer/")));
 		break;
 
 	  case ID_VIEW_SDI:
