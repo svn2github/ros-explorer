@@ -1,8 +1,8 @@
 
  //
- // XML storage C++ classes version 1.3
+ // XML storage C++ classes version 1.4
  //
- // Copyright (c) 2006, 2007, 2008, 2009 Martin Fuchs <martin-fuchs@gmx.net>
+ // Copyright (c) 2006, 2007, 2008, 2009, 2010 Martin Fuchs <martin-fuchs@gmx.net>
  //
 
  /// \file xs-native.cpp
@@ -74,313 +74,329 @@ void XMLReaderBase::read()
 
  /// line buffer for XS-native parser
 
-struct Buffer
+ReadBuffer::ReadBuffer()
 {
-	Buffer()
-	{
-		_buffer = (char*) malloc(BUFFER_LEN);
-		_len = BUFFER_LEN;
+	_buffer = (char*) malloc(BUFFER_LEN);
+	_len = BUFFER_LEN;
 
-		reset();
+	reset();
+}
+
+ReadBuffer::~ReadBuffer()
+{
+	free(_buffer);
+}
+
+void ReadBuffer::reset()
+{
+	_wptr = _buffer;
+	_buffer_str.erase();
+}
+
+void ReadBuffer::append(int c)
+{
+	size_t wpos = _wptr-_buffer;
+
+	if (wpos >= _len) {
+		_len <<= 1;
+		_buffer = (char*) realloc(_buffer, _len);
+		_wptr = _buffer + wpos;
 	}
 
-	~Buffer()
-	{
-		free(_buffer);
-	}
+	*_wptr++ = static_cast<char>(c);
+}
 
-	void reset()
-	{
-		_wptr = _buffer;
-		_buffer_str.erase();
-	}
-
-	void append(int c)
-	{
-		size_t wpos = _wptr-_buffer;
-
-		if (wpos >= _len) {
-			_len <<= 1;
-			_buffer = (char*) realloc(_buffer, _len);
-			_wptr = _buffer + wpos;
-		}
-
-		*_wptr++ = static_cast<char>(c);
-	}
-
-	const std::string& str(bool utf8)	// returns UTF-8 encoded buffer content
-	{
+const std::string& ReadBuffer::str(bool utf8)	// returns UTF-8 encoded buffer content
+{
 #if defined(_WIN32) && !defined(XS_STRING_UTF8)
-		if (utf8)
+	if (utf8)
 #endif
-			_buffer_str.assign(_buffer, _wptr-_buffer);
+		_buffer_str.assign(_buffer, _wptr-_buffer);
 #if defined(_WIN32) && !defined(XS_STRING_UTF8)
-		else
-			_buffer_str = get_utf8(_buffer, _wptr-_buffer);
+	else
+		_buffer_str = get_utf8(_buffer, _wptr-_buffer);
 #endif
 
-		return _buffer_str;
-	}
+	return _buffer_str;
+}
 
-	size_t len() const
-	{
-		return _wptr - _buffer;
-	}
+size_t ReadBuffer::len() const
+{
+	return _wptr - _buffer;
+}
 
-	bool has_CDEnd() const
-	{
-		//if (_wptr-_buffer < 3)
-		//	return false;
+bool ReadBuffer::has_CDEnd() const
+{
+	//if (_wptr-_buffer < 3)
+	//	return false;
 
-		return !strncmp(_wptr-3, CDATA_END, 3);
-	}
+	return !strncmp(_wptr-3, CDATA_END, 3);
+}
 
-	XS_String get_tag() const
-	{
-		const char* p = _buffer_str.c_str();
+XS_String ReadBuffer::get_tag() const
+{
+	const char* p = _buffer_str.c_str();
 
-		if (*p == '<')
-			++p;
+	if (*p == '<')
+		++p;
 
-		if (*p == '/')
-			++p;
+	if (*p == '/')
+		++p;
 
-		const char* q = p;
+	const char* q = p;
 
-		if (*q == '?')
-			++q;
+	if (*q == '?')
+		++q;
 
-		q = get_xmlsym_end_utf8(q);
+	q = get_xmlsym_end_utf8(q);
 
 #ifdef XS_STRING_UTF8
-		return XS_String(p, q-p);
+	return XS_String(p, q-p);
 #else
-		XS_String tag;
-		assign_utf8(tag, p, q-p);
-		return tag;
+	XS_String tag;
+	assign_utf8(tag, p, q-p);
+	return tag;
 #endif
-	}
+}
 
-	 /// read attributes and values
-	void get_attributes(XMLNode::AttributeMap& attributes) const
-	{
-		const char* p = _buffer_str.c_str();
+/// read attributes and values
+void ReadBuffer::get_attributes(XMLNode::AttributeMap& attributes) const
+{
+	const char* p = _buffer_str.c_str();
 
-		 // find end of tag name
-		if (*p == '<')
+	 // find end of tag name
+	if (*p == '<')
+		++p;
+
+	if (*p == '/')
+		++p;
+	else if (*p == '?')
+		++p;
+
+	p = get_xmlsym_end_utf8(p);
+
+	 // read attributes from buffer
+	while(*p && *p!='>' && *p!='/') {
+		while(isspace((unsigned char)*p))
 			++p;
 
-		if (*p == '/')
-			++p;
-		else if (*p == '?')
-			++p;
+		const char* attr_name = p;
 
 		p = get_xmlsym_end_utf8(p);
 
-		 // read attributes from buffer
-		while(*p && *p!='>' && *p!='/') {
-			while(isspace((unsigned char)*p))
-				++p;
+		if (*p != '=')
+			break;	//@TODO error handling
 
-			const char* attr_name = p;
+		size_t attr_len = p - attr_name;
 
-			p = get_xmlsym_end_utf8(p);
+		if (*++p!='"' && *p!='\'')
+			break;	//@TODO error handling
 
-			if (*p != '=')
-				break;	//@TODO error handling
+		char delim = *p;
+		const char* value = ++p;
 
-			size_t attr_len = p - attr_name;
+		while(*p && *p!=delim)
+			++p;
 
-			if (*++p!='"' && *p!='\'')
-				break;	//@TODO error handling
+		size_t value_len = p - value;
 
-			char delim = *p;
-			const char* value = ++p;
-
-			while(*p && *p!=delim)
-				++p;
-
-			size_t value_len = p - value;
-
-			if (*p)
-				++p;	// '"'
+		if (*p)
+			++p;	// '"'
 
 #ifdef XS_STRING_UTF8
-			XS_String name_str(attr_name, attr_len);
+		XS_String name_str(attr_name, attr_len);
 #else
-			XS_String name_str;
-			assign_utf8(name_str, attr_name, attr_len);
+		XS_String name_str;
+		assign_utf8(name_str, attr_name, attr_len);
 #endif
 
-			attributes[name_str] = DecodeXMLString(std::string(value, value_len));
+		attributes[name_str] = DecodeXMLString(std::string(value, value_len));
+	}
+}
+
+
+ParseContext::ParseContext(XMLReaderBase& reader)
+ :	_reader(reader),
+	_utf8(false)
+{
+	_next = reader.get();
+	_in_comment = false;
+}
+
+bool ParseContext::proceed()
+{
+	if (_next != EOF)
+		_next = process_next(_next);
+
+	return _next != EOF;
+}
+
+int ParseContext::process_next(int c)
+{
+	if (_in_comment || c=='<') {
+		if (!_buffer.empty())
+			_buffer.reset();
+
+		_buffer.append(c);
+
+		 // read start or end tag
+		for(;;) {
+			c = _reader.get();
+
+			if (c == EOF)
+				break;
+
+			_buffer.append(c);
+
+			if (c == '>')
+				break;
 		}
+
+		const std::string& b = _buffer.str(_utf8);
+		const char* str = b.c_str();
+
+		if (_in_comment || !strncmp(str+1, "!--", 3)) {
+			 // XML comment
+			_reader.DefaultHandler(b);
+
+			if (strcmp(str+b.length()-3, "-->"))
+				_in_comment = true;
+			else
+				_in_comment = false;
+
+			c = _reader.get();
+		} else if (str[1] == '/') {
+			 // end tag
+
+			/*@TODO error handling
+			const XS_String& tag = buffer.get_tag();
+
+				if (tag != last_opened_tag) {
+					ERROR
+				}
+			*/
+
+			_reader.EndElementHandler();
+
+			c = _reader.get();
+		} else if (str[1] == '?') {
+			 // XML declaration
+			const XS_String& tag = _buffer.get_tag();
+
+			if (tag == "?xml") {
+				XMLNode::AttributeMap attributes;
+				_buffer.get_attributes(attributes);
+
+				const std::string& version = attributes.get("version");
+				const std::string& encoding = attributes.get("encoding");
+
+				int standalone;
+				XMLNode::AttributeMap::const_iterator found = // const_cast for ISO C++ compatibility error of GCC
+						const_cast<const XMLNode::AttributeMap&>(attributes).find("standalone");
+				if (found != attributes.end())
+					standalone = !XS_icmp(found->second.c_str(), XS_TEXT("yes"));
+				else
+					standalone = -1;
+
+				_reader.XmlDeclHandler(version.empty()?NULL:version.c_str(), encoding.empty()?NULL:encoding.c_str(), standalone);
+
+				if (!encoding.empty() && !_stricmp(encoding.c_str(), "utf-8"))
+					_utf8 = true;
+
+				c = _reader.eat_endl();
+			} else if (tag == "?xml-stylesheet") {
+				XMLNode::AttributeMap attributes;
+				_buffer.get_attributes(attributes);
+
+				StyleSheet stylesheet(attributes.get("href"), attributes.get("type"), !XS_icmp(attributes.get("alternate"), XS_TEXT("yes")));
+				stylesheet._title = attributes.get("title");
+				stylesheet._media = attributes.get("media");
+				stylesheet._charset = attributes.get("charset");
+
+				_reader._format._stylesheets.push_back(stylesheet);
+
+				c = _reader.eat_endl();
+			} else {
+				_reader.DefaultHandler(b);
+				c = _reader.get();
+			}
+		} else if (str[1] == '!') {
+			if (!strncmp(str+2, "DOCTYPE ", 8)) {
+				_reader._format._doctype.parse(str+10);
+
+				c = _reader.eat_endl();
+			} else if (!strncmp(str+2, "[CDATA[", 7)) {	// see CDATA_START
+				 // parse <![CDATA[ ... ]]> strings
+				while(!_buffer.has_CDEnd()) {
+					c = _reader.get();
+
+					if (c == EOF)
+						break;
+
+					_buffer.append(c);
+				}
+
+				_reader.DefaultHandler(_buffer.str(_utf8));
+
+				c = _reader.get();
+			}
+		} else {
+			 // start tag
+			const XS_String& tag = _buffer.get_tag();
+
+			if (!tag.empty()) {
+				XMLNode::AttributeMap attributes;
+				_buffer.get_attributes(attributes);
+
+				_reader.StartElementHandler(tag, attributes);
+
+				if (str[b.length()-2] == '/')
+					_reader.EndElementHandler();
+			}
+
+			c = _reader.get();
+		}
+	} else {
+		_buffer.append(c);
+
+		 // read white space
+		for(;;) {
+			 // check for the encoding of the first line end
+			if (!_reader._endl_defined) {
+				if (c == '\n') {
+					_reader._format._endl = "\n";
+					_reader._endl_defined = true;
+				} else if (c == '\r') {
+					_reader._format._endl = "\r\n";
+					_reader._endl_defined = true;
+				}
+			}
+
+			c = _reader.get();
+
+			if (c == EOF)
+				break;
+
+			if (c == '<')
+				break;
+
+			_buffer.append(c);
+		}
+
+		_reader.DefaultHandler(_buffer.str(_utf8));
 	}
 
-protected:
-	char*	_buffer;
-	char*	_wptr;
-	size_t	_len;
-	std::string	_buffer_str;	// UTF-8 encoded
-};
+	_buffer.reset();
+
+	return c;
+}
+
 
 bool XMLReaderBase::parse()
 {
-	Buffer buffer;
-	int c = get();
-	bool in_comment = false;
+	ParseContext ctx(*this);
 
-	while(c != EOF) {
-		if (in_comment || c=='<') {
-			buffer.append(c);
-
-			 // read start or end tag
-			for(;;) {
-				c = get();
-
-				if (c == EOF)
-					break;
-
-				buffer.append(c);
-
-				if (c == '>')
-					break;
-			}
-
-			const std::string& b = buffer.str(_utf8);
-			const char* str = b.c_str();
-
-			if (in_comment || !strncmp(str+1, "!--", 3)) {
-				 // XML comment
-				DefaultHandler(b);
-
-				if (strcmp(str+b.length()-3, "-->"))
-					in_comment = true;
-				else
-					in_comment = false;
-
-				c = get();
-			} else if (str[1] == '/') {
-				 // end tag
-
-				/*@TODO error handling
-				const XS_String& tag = buffer.get_tag();
-
-					if (tag != last_opened_tag) {
-						ERROR
-					}
-				*/
-
-				EndElementHandler();
-
-				c = get();
-			} else if (str[1] == '?') {
-				 // XML declaration
-				const XS_String& tag = buffer.get_tag();
-
-				if (tag == "?xml") {
-					XMLNode::AttributeMap attributes;
-					buffer.get_attributes(attributes);
-
-					const std::string& version = attributes.get("version");
-					const std::string& encoding = attributes.get("encoding");
-
-					int standalone;
-					XMLNode::AttributeMap::const_iterator found =	// const_cast for ISO C++ compatibility error of GCC
-							const_cast<const XMLNode::AttributeMap&>(attributes).find("standalone");
-					if (found != attributes.end())
-						standalone = !XS_icmp(found->second.c_str(), XS_TEXT("yes"));
-					else
-						standalone = -1;
-
-					XmlDeclHandler(version.empty()?NULL:version.c_str(), encoding.empty()?NULL:encoding.c_str(), standalone);
-
-					if (!encoding.empty() && !_stricmp(encoding.c_str(), "utf-8"))
-						_utf8 = true;
-
-					c = eat_endl();
-				} else if (tag == "?xml-stylesheet") {
-					XMLNode::AttributeMap attributes;
-					buffer.get_attributes(attributes);
-
-					StyleSheet stylesheet(attributes.get("href"), attributes.get("type"), !XS_icmp(attributes.get("alternate"), XS_TEXT("yes")));
-					stylesheet._title = attributes.get("title");
-					stylesheet._media = attributes.get("media");
-					stylesheet._charset = attributes.get("charset");
-
-					_format._stylesheets.push_back(stylesheet);
-
-					c = eat_endl();
-				} else {
-					DefaultHandler(b);
-					c = get();
-				}
-			} else if (str[1] == '!') {
-				if (!strncmp(str+2, "DOCTYPE ", 8)) {
-					_format._doctype.parse(str+10);
-
-					c = eat_endl();
-				} else if (!strncmp(str+2, "[CDATA[", 7)) {	// see CDATA_START
-					 // parse <![CDATA[ ... ]]> strings
-					while(!buffer.has_CDEnd()) {
-						c = get();
-
-						if (c == EOF)
-							break;
-
-						buffer.append(c);
-					}
-
-					DefaultHandler(buffer.str(_utf8));
-
-					c = get();
-				}
-			} else {
-				 // start tag
-				const XS_String& tag = buffer.get_tag();
-
-				if (!tag.empty()) {
-				    XMLNode::AttributeMap attributes;
-				    buffer.get_attributes(attributes);
-
-				    StartElementHandler(tag, attributes);
-
-				    if (str[b.length()-2] == '/')
-					    EndElementHandler();
-			    }
-
-				c = get();
-			}
-		} else {
-			buffer.append(c);
-
-			 // read white space
-			for(;;) {
-				 // check for the encoding of the first line end
-				if (!_endl_defined) {
-					if (c == '\n') {
-						_format._endl = "\n";
-						_endl_defined = true;
-					} else if (c == '\r') {
-						_format._endl = "\r\n";
-						_endl_defined = true;
-					}
-				}
-
-				c = get();
-
-				if (c == EOF)
-					break;
-
-				if (c == '<')
-					break;
-
-				buffer.append(c);
-			}
-
-			DefaultHandler(buffer.str(_utf8));
-		}
-
-		buffer.reset();
+	while(ctx.proceed()) {
 	}
 
 	return true; //TODO return false on invalid XML
@@ -437,6 +453,6 @@ void XMLReaderBase::DefaultHandler(const std::string& s)
 }
 
 
-}	// namespace XMLStorage
+} // namespace XMLStorage
 
 #endif // !defined(XS_USE_EXPAT) && !defined(XS_USE_XERCES)
