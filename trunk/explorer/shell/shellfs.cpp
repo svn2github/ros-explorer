@@ -366,7 +366,8 @@ void ShellDirectory::read_directory(int scan_flags)
 		TCHAR path[MAX_PATH];
 		HRESULT hr_next = S_OK;
 
-		do {
+		if (enumerator)
+		  do {
 #define FETCH_ITEM_COUNT	32
 			LPITEMIDLIST pidls[FETCH_ITEM_COUNT];
 			ULONG cnt = 0;
