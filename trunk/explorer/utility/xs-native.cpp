@@ -1,8 +1,8 @@
 
  //
- // XML storage C++ classes version 1.4
+ // XML storage C++ classes version 1.5
  //
- // Copyright (c) 2006, 2007, 2008, 2009, 2010 Martin Fuchs <martin-fuchs@gmx.net>
+ // Copyright (c) 2006, 2007, 2008, 2009, 2010, 2011, 2012 Martin Fuchs <martin-fuchs@gmx.net>
  //
 
  /// \file xs-native.cpp
@@ -37,13 +37,11 @@
 
 */
 
-#include <precomp.h>
-
 #ifndef XS_NO_COMMENT
 #define XS_NO_COMMENT	// no #pragma comment(lib, ...) statements in .lib files to enable static linking
 #endif
 
-//#include "xmlstorage.h"
+#include "xmlstorage.h"
 
 
 #if !defined(XS_USE_EXPAT) && !defined(XS_USE_XERCES)
@@ -59,9 +57,7 @@ XMLReaderBase::~XMLReaderBase()
 void XMLReaderBase::read()
 {
 	if (!parse()) {
-		XMLError error;
-
-		error._message = "XML parsing error";
+		XMLError error("XML parsing error");
 		//error._line = ;
 		//error._column = ;
 
@@ -74,7 +70,9 @@ void XMLReaderBase::read()
 
  /// line buffer for XS-native parser
 
-ReadBuffer::ReadBuffer()
+ReadBuffer::ReadBuffer(XMLErrorList& errors, XMLLocation& location)
+ :	_errors(errors),
+	_location(location)
 {
 	_buffer = (char*) malloc(BUFFER_LEN);
 	_len = BUFFER_LEN;
@@ -153,13 +151,11 @@ XS_String ReadBuffer::get_tag() const
 #ifdef XS_STRING_UTF8
 	return XS_String(p, q-p);
 #else
-	XS_String tag;
-	assign_utf8(tag, p, q-p);
-	return tag;
+	return from_utf8(p, q-p);
 #endif
 }
 
-/// read attributes and values
+ /// read attributes and values
 void ReadBuffer::get_attributes(XMLNode::AttributeMap& attributes) const
 {
 	const char* p = _buffer_str.c_str();
@@ -180,17 +176,24 @@ void ReadBuffer::get_attributes(XMLNode::AttributeMap& attributes) const
 		while(isspace((unsigned char)*p))
 			++p;
 
+		if (*p=='?' || *p=='/')
+			break;
+
 		const char* attr_name = p;
 
 		p = get_xmlsym_end_utf8(p);
 
-		if (*p != '=')
-			break;	//@TODO error handling
+		if (*p != '=') {
+			_errors.push_back(XMLError(_location, "missing attribute assignment"));
+			break;
+		}
 
 		size_t attr_len = p - attr_name;
 
-		if (*++p!='"' && *p!='\'')
-			break;	//@TODO error handling
+		if (*++p!='"' && *p!='\'') {
+			_errors.push_back(XMLError(_location, "missing attribute value quote"));
+			break;
+		}
 
 		char delim = *p;
 		const char* value = ++p;
@@ -201,7 +204,9 @@ void ReadBuffer::get_attributes(XMLNode::AttributeMap& attributes) const
 		size_t value_len = p - value;
 
 		if (*p)
-			++p;	// '"'
+			++p;	// '"' oder '\''
+		else
+			_errors.push_back(XMLError(_location, "unterminated attribute quote"));
 
 #ifdef XS_STRING_UTF8
 		XS_String name_str(attr_name, attr_len);
@@ -217,10 +222,32 @@ void ReadBuffer::get_attributes(XMLNode::AttributeMap& attributes) const
 
 ParseContext::ParseContext(XMLReaderBase& reader)
  :	_reader(reader),
+	_buffer(reader._errors, reader._location),
 	_utf8(false)
 {
 	_next = reader.get();
 	_in_comment = false;
+
+	 // check for UTF-8 signature
+	read_bom();
+}
+
+void ParseContext::read_bom()
+{
+	if (_next == 0xEF) {
+		_next = _reader.get();
+
+		if (_next == 0xBB) {
+			_next = _reader.get();
+
+			if (_next == 0xBF) {
+				_utf8 = true;
+				_reader._format._utf8_bom = true;
+
+				_next = _reader.get();
+			}
+		}
+	}
 }
 
 bool ParseContext::proceed()
@@ -300,8 +327,12 @@ int ParseContext::process_next(int c)
 
 				_reader.XmlDeclHandler(version.empty()?NULL:version.c_str(), encoding.empty()?NULL:encoding.c_str(), standalone);
 
-				if (!encoding.empty() && !_stricmp(encoding.c_str(), "utf-8"))
-					_utf8 = true;
+				if (!encoding.empty()) {
+					if (!_stricmp(encoding.c_str(), "utf-8"))
+						_utf8 = true;
+					else
+						assert(!_reader._format._utf8_bom); // mismatch between BOM and xml header
+				}
 
 				c = _reader.eat_endl();
 			} else if (tag == "?xml-stylesheet") {
@@ -356,7 +387,7 @@ int ParseContext::process_next(int c)
 
 			c = _reader.get();
 		}
-	} else {
+	} else { // in_comment || c=='<'
 		_buffer.append(c);
 
 		 // read white space
@@ -414,36 +445,6 @@ int XMLReaderBase::eat_endl()
 
 	return c;
 }
-
- /// return current parser position as string
-std::string XMLReaderBase::get_position() const
-{
-/*@TODO display parser position in case of errors
-	int line = XML_GetCurrentLineNumber(_parser);
-	int column = XML_GetCurrentColumnNumber(_parser);
-
-	std::ostringstream out;
-	out << "(" << line << ") : [column " << column << "]";
-
-	return out.str();
-*/
-	return "";
-}
-
-
-#ifdef XMLNODE_LOCATION
-
-XMLLocation XMLReaderBase::get_location() const
-{
-	return XMLLocation();	//@TODO XMLLocation for XS-native
-}
-
-std::string XMLLocation::str() const
-{
-	return "";	//TODO
-}
-
-#endif
 
 
  /// store content, white space and comments

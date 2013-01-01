@@ -2,7 +2,7 @@
  //
  // XML storage C++ classes version 1.5
  //
- // Copyright (c) 2004, 2005, 2006, 2007, 2008, 2009, 2010 Martin Fuchs <martin-fuchs@gmx.net>
+ // Copyright (c) 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012 Martin Fuchs <martin-fuchs@gmx.net>
  //
 
  /// \file xmlstorage.cpp
@@ -55,6 +55,7 @@ const LPCXSSTR XS_EMPTY = XS_EMPTY_STR;
 const LPCXSSTR XS_TRUE = XS_TRUE_STR;
 const LPCXSSTR XS_FALSE = XS_FALSE_STR;
 const LPCXSSTR XS_INTFMT = XS_INTFMT_STR;
+const LPCXSSTR XS_INT64FMT = XS_INT64FMT_STR;
 const LPCXSSTR XS_FLOATFMT = XS_FLOATFMT_STR;
 #endif
 
@@ -64,55 +65,47 @@ const XS_String XS_PROPERTY = XS_PROPERTY_STR;
 
 
  /// remove escape characters from zero terminated string
-static std::string unescape(const char* s, char b, char e)
+static XS_String unescape(LPCXSSTR s, TCHAR b, TCHAR e)
 {
-	const char* end = s + strlen(s);
+	if (*s == b) {
+		LPCXSSTR end = s + _tcslen(s);
 
-//	if (*s == b)
-//		++s;
-//
-//	if (end>s && end[-1]==e)
-//		--end;
-
-	if (*s == b)
 		if (end>s && end[-1]==e)
 			++s, --end;
 
-	return std::string(s, end-s);
+		return XS_String(s, end-s);
+	} else
+		return s;
 }
 
-inline std::string unescape(const char* s)
+inline XS_String unescape(LPCXSSTR s)
 {
-	if (*s == '\'')
-		return unescape(s, '\'', '\'');
+	if (*s == _T('\''))
+		return unescape(s, _T('\''), _T('\''));
 	else
-		return unescape(s, '"', '"');
+		return unescape(s, _T('"'), _T('"'));
 }
 
  /// remove escape characters from string with specified length
-static std::string unescape(const char* s, size_t l, char b, char e)
+static XS_String unescape(LPCXSSTR s, size_t l, char b, char e)
 {
-	const char* end = s + l;
-
-//	if (*s == b)
-//		++s;
-//
-//	if (end>s && end[-1]==e)
-//		--end;
+	LPCXSSTR end = s + l;
 
 	if (*s == b)
 		if (end>s && end[-1]==e)
 			++s, --end;
 
-	return std::string(s, end-s);
+	return XS_String(s, end-s);
 }
 
-inline std::string unescape(const char* s, size_t l)
+inline XS_String unescape(LPCXSSTR s, size_t l)
 {
 	if (*s == '\'')
-		return unescape(s, l, '\'', '\'');
+		return unescape(s, l, _T('\''), _T('\''));
+	else if (*s == '"')
+		return unescape(s, l, _T('"'), _T('"'));
 	else
-		return unescape(s, l, '"', '"');
+		return XS_String(s, l);
 }
 
 
@@ -145,56 +138,61 @@ bool const_XMLPos::go(const XPath& xpath)
 }
 
 
-const char* XPathElement::parse(const char* path)
+LPCXSSTR XPathElement::parse(LPCXSSTR path)
 {
-	const char* slash = strchr(path, '/');
+	LPCXSSTR slash = _tcschr(path, '/');
 	if (slash == path)
 		return NULL;
 
-	size_t l = slash? slash-path: strlen(path);
-	std::string comp(path, l);
+	 // parse relative path
+	size_t l = slash? slash-path: _tcslen(path);
+	XS_String comp(path, l);
 	path += l;
 
 	 // look for [n] and [@attr_name="attr_value"] expressions in path components
-	const char* bracket = strchr(comp.c_str(), '[');
+	LPCXSSTR bracket = _tcschr(comp.c_str(), _T('['));
 	l = bracket? bracket-comp.c_str(): comp.length();
 	_child_name.assign(comp.c_str(), l);
 
 	if (bracket) {
-		std::string expr = unescape(bracket, '[', ']');
-		const char* p = expr.c_str();
+		XS_String expr = unescape(bracket, _T('['), _T(']'));
+		LPCXSSTR p = expr.c_str();
 
-		while(isspace((unsigned char)*p)) ++p;
+		while(_istspace((_TUCHAR)*p)) ++p;
 
 		if (isdigit(*p)) {
-			int n = atoi(p);	// read index number
+			int n = _ttoi(p);	// read index number
 
 			if (n)
 				_child_idx = n - 1;	// convert into zero based index
 		} else {
 			while(*p == '@') {
-				const char* equal = strchr(++p, '=');
+				LPCXSSTR equal = _tcschr(++p, '=');
 
 				if (equal) {
-					 // read attribute name and value
-					const char *br=equal+1, *br2=strchr(br+1, *br);
+					 // look for delimiters
+					LPCXSSTR del1 = equal+1;
+					LPCXSSTR del2 = *del1==_T('\'')||*del1==_T('"')? _tcschr(del1+1, *del1): NULL;
 
-					const std::string& attrName = unescape(p, equal-p);
-					const std::string& attrValue = br2? unescape(br, ++br2-br): unescape(br);
+					 // read attribute name and value
+					const XS_String& attrName = unescape(p, equal-p);
+					const XS_String& attrValue = del2? unescape(del1, ++del2-del1): unescape(del1);
+
 					_mAttrAndAttr[attrName] = attrValue;
-					if (!br2)
+
+					if (!del2)
 						break;
 
-					p = br2;
+					p = del2 + 1;
 					while(isspace((unsigned char)*p)) ++p;
 
 					 // handle [@attr1="value1" and @attr2="value2"] expressions
 					 // handle expressions like [@name="1.2" and @profil="IPE" and @date="2006_07"]
-					if (!_strnicmp(p, "and ", 4))
+					if (!_tcsnicmp(p, _T("and "), 4))
 						p += 4;
 				}
 
-				while(isspace((unsigned char)*p)) ++p;
+				while(_istspace((_TUCHAR)*p)) ++p;
 			}
 		}
 	}
@@ -243,7 +241,7 @@ bool XPathElement::matches(const XMLNode& node, int& n) const
 }
 
 
-void XPath::init(const char* path)
+void XPath::init(LPCXSSTR path)
 {
 	 // Is this an absolute path?
 	if (*path == '/') {
@@ -261,10 +259,10 @@ void XPath::init(const char* path)
 		if (!path)
 			break;
 
+		push_back(elem);
+
 		if (*path == '/')
 			++path;
-
-		push_back(elem);
 	}
 }
 
@@ -277,7 +275,7 @@ const XMLNode* XMLNode::find_relative(const XPath& xpath) const
 		node = it->const_find(node);
 
 		if (!node)
-			return NULL;
+			break;
 	}
 
 	return node;
@@ -291,7 +289,7 @@ XMLNode* XMLNode::find_relative(const XPath& xpath)
 		node = it->find(node);
 
 		if (!node)
-			return NULL;
+			break;
 	}
 
 	return node;
@@ -406,6 +404,12 @@ std::string EncodeXMLString(const XS_String& str, bool cdata)
 		ret += get_utf8(str);
 #endif
 
+#ifdef XS_STRICT_XML_1_0
+		for(char*p=&ret.at(9); *p; ++p) // strlen(CDATA_START) == 9
+			if ((unsigned)*p<0x20 && *p!='\t' && *p!='\r' && *p!='\n')
+				*p = '?';
+#endif
+
 		ret += CDATA_END;
 
 		return ret;
@@ -436,13 +440,18 @@ std::string EncodeXMLString(const XS_String& str, bool cdata)
 				break;
 
 			  default:
-				if ((unsigned)*p<0x20 && *p!='\t' && *p!='\r' && *p!='\n') {
+				if ((unsigned)*p>=0x20 || *p=='\t' || *p=='\r' || *p=='\n')
+					*o++ = *p;
+				else {
+#ifdef XS_STRICT_XML_1_0
+					*o++ = '?';
+#else
 					char b[16];
 					sprintf(b, "&#%d;", (unsigned)*p);
 					for(const char*q=b; *q; )
 						*o++ = *q++;
-				} else
-					*o++ = *p;
+#endif
+				}
 			}
 
 #ifdef XS_STRING_UTF8
@@ -485,10 +494,15 @@ std::string EncodeXMLString(const XS_String& str, bool cdata)
 				break;
 
 			  default:
-				if ((unsigned)*p<0x20 && *p!='\t' && *p!='\r' && *p!='\n')
-					out << "&#" << (unsigned)*p << ";";
-				else
+				if ((unsigned)*p>=0x20 || *p=='\t' || *p=='\r' || *p=='\n')
 					out << (unsigned char)*p;
+				else {
+#ifdef XS_STRICT_XML_1_0
+					out << '?';
+#else
+					out << "&#" << (unsigned)*p << ";";
+#endif
+				}
 			}
 
 #ifdef XS_STRING_UTF8
@@ -500,19 +514,21 @@ std::string EncodeXMLString(const XS_String& str, bool cdata)
 }
 
  /// decode XML string literals
-XS_String DecodeXMLString(const std::string& str)
+XS_String DecodeXMLString(const std::string& str_utf8)
 {
 #ifdef XS_STRING_UTF8
-	const XS_String& str_utf8 = str;
+	const XS_String& str = str_utf8;
 #else
-	XS_String str_utf8;
-	assign_utf8(str_utf8, str.c_str(), str.length());
+	XS_String str;
+	assign_utf8(str, str_utf8.c_str(), str_utf8.length());
 #endif
 
-	LPCXSSTR s = str_utf8.c_str();
-	LPXSSTR buffer = (LPXSSTR)alloca(sizeof(XS_CHAR)*XS_len(s));
-	LPXSSTR o = buffer;
+	LPCXSSTR s = str.c_str();
+	size_t l = XS_len(s);
 
+	TMP_ALLOC(XS_CHAR, buffer, heap, l);
+
+	LPXSSTR o = buffer;
 	for(LPCXSSTR p=s; *p; ++p)
 		if (*p == '&') {
 			if (!XS_nicmp(p+1, XS_TEXT("lt;"), 3)) {
@@ -697,11 +713,37 @@ void XMLNode::smart_write_worker(std::ostream& out, const XMLFormat& format, int
 
 std::ostream& operator<<(std::ostream& out, const XMLError& err)
 {
-	out << err._systemId << "(" << err._line << ") [column " << err._column << "] : "
-		<< err._message;
+	out << err._systemId << "(" << err._line << ")";
+
+	if (err._column > 1)
+		out << " [column " << err._column << "]";
+
+	out << " : " << err._message;
 
 	return out;
 }
+
+
+#if defined(XS_NATIVE) || defined(XMLNODE_LOCATION)
+
+std::string XMLLocation::str() const
+{
+	std::ostringstream out;
+
+	if (_pdisplay_path)
+		out << _pdisplay_path;
+
+	out << "(" << _line << ")";
+
+	if (_column > 1)
+		out << " [column " << _column << "]";
+
+	out << " :";
+
+	return out.str();
+}
+
+#endif
 
 
 const char* get_xmlsym_end_utf8(const char* p)
@@ -764,6 +806,17 @@ void DocType::parse(const char* p)
 
 void XMLFormat::print_header(std::ostream& out, bool lf) const
 {
+	if (_inhibit_header)
+		return;
+
+	if (_utf8_bom) {
+		 // write UTF-8 signature at file start
+		out.put('\xEF');
+		out.put('\xBB');
+		out.put('\xBF');
+		assert(!_stricmp(_encoding.c_str(), "utf-8"));
+	}
+
 	out << "<?xml version=\"" << _version << "\" encoding=\"" << _encoding << "\"";
 
 	if (_standalone != -1)
@@ -842,12 +895,12 @@ std::string XMLError::str() const
 
 
  /// return merged error strings
-XS_String XMLErrorList::str() const
+XS_String XMLErrorList::str(const char* del) const
 {
 	std::ostringstream out;
 
 	for(const_iterator it=begin(); it!=end(); ++it)
-		out << *it << std::endl;
+		out << *it << del;
 
 	return out.str();
 }
@@ -1003,8 +1056,10 @@ bool XMLWriter::back()
 
 		_stack.pop();
 		return true;
-	} else
+	} else {
+		assert(!_stack.empty());
 		return false;
+	}
 }
 
 void XMLWriter::close_pre(StackEntry& entry)
@@ -1064,6 +1119,20 @@ void XMLWriter::write_post(StackEntry& entry)
 	entry._state = POST;
 }
 
+void XMLWriter::write(const std::string& s)
+{
+	if (!_stack.empty()) {
+		StackEntry& last = _stack.top();
+
+		if (last._state < PRE_CLOSED) {
+			write_attributes(last);
+			close_pre(last);
+		}
+	}
+
+	_out.write(s.c_str(), s.length());
+}
+
 
  /// XPath find function
 bool XMLStreamReader::find_relative(const XPath& xpath)
@@ -1099,6 +1168,22 @@ bool XMLStreamReader::find_node(LPCXSSTR target_tag, int target_level, int min_l
 
 				StartElementHandler(_state_rdr._node_name, _state_rdr._attrs);
 				break;}
+
+			case XMLStateReader::XSS_ELEMENT:
+				 // stop parsing if we found the target node and its content is already processed.
+				if (found)
+					goto break_parsingLoop;
+
+				 // check for match in target level and eventually node name
+				if (_level+1 == target_level) {
+					if (target_tag==NULL || _state_rdr._node_name==target_tag)
+						found = true;
+					else if (stop_on_others)
+						return false;
+				}
+
+				StartElementHandler(_state_rdr._node_name, _state_rdr._attrs);
+				// fall through...
 
 			case XMLStateReader::XSS_END_ELEMENT: {
 				 // stop parsing if we found the target node and its content is already processed.
@@ -1185,6 +1270,7 @@ void XMLStateReader::StartElementHandler(const XS_String& name, const XMLNode::A
 	_attrs = attr;
 	_content.erase();
 
+	assert(_state==XSS_NONE);
 	_state = XSS_START_ELEMENT;
 }
 
@@ -1194,13 +1280,19 @@ void XMLStateReader::EndElementHandler()
 //	_attrs.clear();
 	_content.erase();
 
-	_state = XSS_END_ELEMENT;
+	if (_state == XSS_START_ELEMENT)
+		_state = XSS_ELEMENT;
+	else {
+		assert(_state==XSS_NONE);
+		_state = XSS_END_ELEMENT;
+	}
 }
 
 void XMLStateReader::DefaultHandler(const std::string& s)
 {
 	_content.append(EncodeXMLString(s));
 
+	assert(_state==XSS_NONE);
 	_state = XSS_CHARACTERS;
 }
 
@@ -1211,5 +1303,6 @@ void XMLStateReader::XmlDeclHandler(const char* version, const char* encoding, i
 		.append(" ").append(_state_rdr.getPIData()).append("?>");
 }
 */
+
 
 }	// namespace XMLStorage

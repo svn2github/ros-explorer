@@ -2,7 +2,7 @@
  //
  // XML storage C++ classes version 1.5
  //
- // Copyright (c) 2004, 2005, 2006, 2007, 2008, 2009, 2010 Martin Fuchs <martin-fuchs@gmx.net>
+ // Copyright (c) 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012 Martin Fuchs <martin-fuchs@gmx.net>
  //
 
  /// \file xmlstorage.h
@@ -38,6 +38,10 @@
 */
 
 #ifndef _XMLSTORAGE_H
+
+#ifndef XS_STRICT_XML_1_0
+//#define XS_STRICT_XML_1_0	// suppress characters invalid for the XML 1.0 specification
+#endif
 
 
 #ifdef UNICODE
@@ -93,11 +97,16 @@ typedef XMLCh XML_Char;
 
 #include <expat/expat.h>
 
+#else
+#define XS_NATIVE
 #endif
 
 
 #ifdef _MSC_VER
-#pragma warning(disable: 4786)
+#pragma warning(disable: 4786)	// identifier was truncated to 'number' characters in the debug information
+
+#pragma warning(push)
+#pragma warning(disable: 4512) // assignment operator could not be generated
 
 #ifndef	XS_NO_COMMENT
 
@@ -119,26 +128,26 @@ typedef XMLCh XML_Char;
 
 #ifndef _STRING_DEFINED	// _STRING_DEFINED only allowed if using xmlstorage.cpp embedded in the project
 #if defined(_DEBUG) && defined(_DLL)	// DEBUG version only supported with MSVCRTD
-#if _MSC_VER==1500
+#if _MSC_VER==1500 // VS2008
 #pragma comment(lib, "xmlstorage-vc9d")
-#elif _MSC_VER==1400
+#elif _MSC_VER==1400 // VS2005
 #pragma comment(lib, "xmlstorage-vc8d")
 #else
 #pragma comment(lib, "xmlstorage-vc6d")
 #endif
 #else
 #ifdef _DLL
-#if _MSC_VER==1500
+#if _MSC_VER==1500 // VS2008
 #pragma comment(lib, "xmlstorage-vc9")
-#elif _MSC_VER==1400
+#elif _MSC_VER==1400 // VS2005
 #pragma comment(lib, "xmlstorage-vc8")
 #else
 #pragma comment(lib, "xmlstorage-vc6")
 #endif
 #elif defined(_MT)
-#if _MSC_VER==1500
+#if _MSC_VER==1500 // VS2008
 #pragma comment(lib, "xmlstorage-vc9t")
-#elif _MSC_VER==1400
+#elif _MSC_VER==1400 // VS2005
 #pragma comment(lib, "xmlstorage-vc8t")
 #else
 #pragma comment(lib, "xmlstorage-vc6t")
@@ -209,6 +218,8 @@ typedef const CHAR* LPCTSTR;
 
 #endif // _WIN32
 
+#include <assert.h>
+
 #ifdef __BORLANDC__
 #define _stricmp stricmp
 #endif
@@ -224,6 +235,12 @@ typedef const CHAR* LPCTSTR;
 
 #ifndef BUFFER_LEN
 #define BUFFER_LEN 2048
+#endif
+
+#define BUFFER_HUGE 0x7F80
+
+#ifndef ALLOCA_MAX
+#define ALLOCA_MAX 0x10000
 #endif
 
 
@@ -242,10 +259,12 @@ namespace XMLStorage {
 #define	XS_ncmp strncmp
 #define	XS_nicmp strnicmp
 #define	XS_toi atoi
+#define	XS_toi64 _atoi64
 #define	XS_tod strtod
 #define	XS_len strlen
 #define	XS_snprintf _snprintf
 #define	XS_vsnprintf _vsnprintf
+#define	XS_vsnprintf_s _vsnprintf_s
 #define	XS_strstr strstr
 #else
 #define	XS_CHAR TCHAR
@@ -257,20 +276,52 @@ namespace XMLStorage {
 #define	XS_ncmp _tcsncmp
 #define	XS_nicmp _tcsnicmp
 #define	XS_toi _ttoi
+#define	XS_toi64 _ttoi64
 #define	XS_tod _tcstod
 #define	XS_len _tcslen
 #define	XS_snprintf _sntprintf
 #define	XS_vsnprintf _vsntprintf
+#define	XS_vsnprintf_s _vsntprintf_s
 #define	XS_strstr _tcsstr
 #endif
 
 #ifndef COUNTOF
-#if _MSC_VER>=1400
+#if _MSC_VER>=1400 // VS2005 or higher
 #define COUNTOF _countof
 #else
 #define COUNTOF(b) (sizeof(b)/sizeof(b[0]))
 #endif
 #endif
+
+
+ // manage a locally allocated heap pointer
+struct TmpHeap
+{
+	TmpHeap()
+	{
+		_pHeap = NULL;
+	}
+
+	~TmpHeap()
+	{
+		if (_pHeap)
+			free(_pHeap);
+	}
+
+	void operator=(void* p)
+	{
+		_pHeap = p;
+	}
+
+private:
+	void*	_pHeap;
+};
+
+ // temporary memory allocation using alloca() or malloc() for bigger buffer sizes
+#define TMP_ALLOC(T, b, h, l) \
+TmpHeap h; T* b; \
+if (l <= ALLOCA_MAX) b = (T*)alloca(sizeof(T)*l); \
+else h = b = (T*)malloc(sizeof(T)*l)
 
 
 extern const char* get_xmlsym_end_utf8(const char* p);
@@ -311,19 +362,19 @@ struct XS_String
 	XS_String(LPCSTR s, size_t l) {assign(s, l);}
 	XS_String(const std::string& s) {assign(s.c_str());}
 	XS_String& operator=(LPCSTR s) {assign(s); return *this;}
-	void assign(LPCSTR s) {if (s) {size_t bl=strlen(s); LPWSTR b=(LPWSTR)alloca(sizeof(WCHAR)*bl); super::assign(b, MultiByteToWideChar(CP_ACP, 0, s, bl, b, bl));} else erase();}
-	void assign(LPCSTR s, size_t l) {if (s) {size_t bl=l; LPWSTR b=(LPWSTR)alloca(sizeof(WCHAR)*bl); super::assign(b, MultiByteToWideChar(CP_ACP, 0, s, l, b, bl));} else erase();}
+	void assign(LPCSTR s) {if (s) {size_t bl=strlen(s); TMP_ALLOC(WCHAR, b, h, bl); super::assign(b, MultiByteToWideChar(CP_ACP, 0, s, (int)bl, b, (int)bl));} else erase();}
+	void assign(LPCSTR s, size_t l) {if (s) {size_t bl=l; TMP_ALLOC(WCHAR, b, h, bl); super::assign(b, MultiByteToWideChar(CP_ACP, 0, s, (int)l, b, (int)bl));} else erase();}
 #else
 	XS_String(LPCWSTR s) {assign(s);}
 	XS_String(LPCWSTR s, size_t l) {assign(s, l);}
 	XS_String(const std::wstring& ws) {assign(ws.c_str());}
 	XS_String& operator=(LPCWSTR s) {assign(s); return *this;}
 #ifdef XS_STRING_UTF8
-	void assign(LPCWSTR s) {if (s) {size_t bl=wcslen(s); LPSTR b=(LPSTR)alloca(bl); super::assign(b, WideCharToMultiByte(CP_UTF8, 0, s, (int)bl, b, (int)bl, 0, 0));} else erase();}
-	void assign(LPCWSTR s, size_t l) {size_t bl=l; if (s) {LPSTR b=(LPSTR)alloca(bl); super::assign(b, WideCharToMultiByte(CP_UTF8, 0, s, (int)l, b, (int)bl, 0, 0));} else erase();}
+	void assign(LPCWSTR s) {if (s) {size_t bl=4*wcslen(s); TMP_ALLOC(char, b, h, bl); super::assign(b, WideCharToMultiByte(CP_UTF8, 0, s, (int)bl, b, (int)bl, 0, 0));} else erase();}
+	void assign(LPCWSTR s, size_t l) {if (s) {size_t bl=4*l; TMP_ALLOC(char, b, h, bl); super::assign(b, WideCharToMultiByte(CP_UTF8, 0, s, (int)l, b, (int)bl, 0, 0));} else erase();}
 #else // if !UNICODE && !XS_STRING_UTF8
-	void assign(LPCWSTR s) {if (s) {size_t bl=wcslen(s); LPSTR b=(LPSTR)alloca(bl); super::assign(b, WideCharToMultiByte(CP_ACP, 0, s, (int)bl, b, (int)bl, 0, 0));} else erase();}
-	void assign(LPCWSTR s, size_t l) {size_t bl=l; if (s) {LPSTR b=(LPSTR)alloca(bl); super::assign(b, WideCharToMultiByte(CP_ACP, 0, s, (int)l, b, (int)bl, 0, 0));} else erase();}
+	void assign(LPCWSTR s) {if (s) {size_t bl=wcslen(s); TMP_ALLOC(char, b, h, bl); super::assign(b, WideCharToMultiByte(CP_ACP, 0, s, (int)bl, b, (int)bl, 0, 0));} else erase();}
+	void assign(LPCWSTR s, size_t l) {if (s) {size_t bl=l; TMP_ALLOC(char, b, h, bl); super::assign(b, WideCharToMultiByte(CP_ACP, 0, s, (int)l, b, (int)bl, 0, 0));} else erase();}
 #endif
 #endif
 #endif // _WIN32
@@ -347,52 +398,86 @@ struct XS_String
 
 #ifdef _WIN32
 #ifdef XS_STRING_UTF8
-	operator std::wstring() const {size_t bl=length(); LPWSTR b=(LPWSTR)alloca(sizeof(WCHAR)*bl); return std::wstring(b, MultiByteToWideChar(CP_UTF8, 0, c_str(), bl, b, bl));}
+	operator std::wstring() const {size_t bl=length(); TMP_ALLOC(WCHAR, b, h, bl); return std::wstring(b, MultiByteToWideChar(CP_UTF8, 0, c_str(), bl, b, bl));}
 #elif defined(UNICODE)
-	operator std::string() const {size_t bl=length(); LPSTR b=(LPSTR)alloca(bl); return std::string(b, WideCharToMultiByte(CP_ACP, 0, c_str(), bl, b, bl, 0, 0));}
+	operator std::string() const {size_t bl=length(); TMP_ALLOC(char, b, h, bl); return std::string(b, WideCharToMultiByte(CP_ACP, 0, c_str(), (int)bl, b, (int)bl, 0, 0));}
 #else
-	operator std::wstring() const {size_t bl=length(); LPWSTR b=(LPWSTR)alloca(sizeof(WCHAR)*bl); return std::wstring(b, MultiByteToWideChar(CP_ACP, 0, c_str(), (int)bl, b, (int)bl));}
+	operator std::wstring() const {size_t bl=length(); TMP_ALLOC(WCHAR, b, h, bl); return std::wstring(b, MultiByteToWideChar(CP_ACP, 0, c_str(), (int)bl, b, (int)bl));}
 #endif
 #endif
 
 	XS_String& printf(LPCXSSTR fmt, ...)
 	{
-		va_list l;
-		XS_CHAR b[BUFFER_LEN];
+		va_list vl;
 
-		va_start(l, fmt);
-		super::assign(b, XS_vsnprintf(b, COUNTOF(b), fmt, l));
-		va_end(l);
+		va_start(vl, fmt);
+		vprintf(fmt, vl);
+		va_end(vl);
 
 		return *this;
 	}
 
-	XS_String& vprintf(LPCXSSTR fmt, va_list l)
+	XS_String& vprintf(LPCXSSTR fmt, va_list vl)
 	{
 		XS_CHAR b[BUFFER_LEN];
 
-		super::assign(b, XS_vsnprintf(b, COUNTOF(b), fmt, l));
+		int l = XS_vsnprintf(b, COUNTOF(b), fmt, vl);
+
+		if (l >= 0)
+			super::assign(b, l);
+		else {
+			LPTSTR p = (LPTSTR)malloc(sizeof(TCHAR)*BUFFER_HUGE);
+
+#ifdef __STDC_WANT_SECURE_LIB__
+			l = XS_vsnprintf_s(p, BUFFER_HUGE, _TRUNCATE, fmt, vl);
+#else
+			l = XS_vsnprintf(p, BUFFER_HUGE, fmt, vl);
+#endif
+			if (l >= 0)
+				super::assign(p, l);
+			else
+				super::assign(fmt); // snprintf failed
+
+			free(p);
+		}
 
 		return *this;
 	}
 
 	XS_String& appendf(LPCXSSTR fmt, ...)
 	{
-		va_list l;
-		XS_CHAR b[BUFFER_LEN];
+		va_list vl;
 
-		va_start(l, fmt);
-		super::append(b, XS_vsnprintf(b, COUNTOF(b), fmt, l));
-		va_end(l);
+		va_start(vl, fmt);
+		vappendf(fmt, vl);
+		va_end(vl);
 
 		return *this;
 	}
 
-	XS_String& vappendf(LPCXSSTR fmt, va_list l)
+	XS_String& vappendf(LPCXSSTR fmt, va_list vl)
 	{
 		XS_CHAR b[BUFFER_LEN];
 
-		super::append(b, XS_vsnprintf(b, COUNTOF(b), fmt, l));
+		int l = XS_vsnprintf(b, COUNTOF(b), fmt, vl);
+
+		if (l >= 0)
+			super::append(b, l);
+		else {
+			LPTSTR p = (LPTSTR)malloc(sizeof(TCHAR)*BUFFER_HUGE);
+
+#ifdef __STDC_WANT_SECURE_LIB__
+			l = XS_vsnprintf_s(p, BUFFER_HUGE, _TRUNCATE, fmt, vl);
+#else
+			l = XS_vsnprintf(p, BUFFER_HUGE, fmt, vl);
+#endif
+			if (l >= 0)
+				super::append(p, l);
+			else
+				super::append(fmt); // snprintf failed
+
+			free(p);
+		}
 
 		return *this;
 	}
@@ -407,6 +492,7 @@ struct XS_String
 #define	XS_TRUE_STR XS_TEXT("true")
 #define	XS_FALSE_STR XS_TEXT("false")
 #define	XS_INTFMT_STR XS_TEXT("%d")
+#define	XS_INT64FMT_STR XS_TEXT("%I64d")
 #define	XS_FLOATFMT_STR XS_TEXT("%f")
 
 #define	XS_KEY_STR XS_TEXT("key")
@@ -419,12 +505,14 @@ extern const LPCXSSTR XS_EMPTY;
 extern const LPCXSSTR XS_TRUE;
 extern const LPCXSSTR XS_FALSE;
 extern const LPCXSSTR XS_INTFMT;
+extern const LPCXSSTR XS_INT64FMT;
 extern const LPCXSSTR XS_FLOATFMT;
 #else
 #define	XS_EMPTY XS_EMPTY_STR
 #define	XS_TRUE XS_TRUE_STR
 #define	XS_FALSE XS_FALSE_STR
 #define	XS_INTFMT XS_INTFMT_STR
+#define	XS_INT64FMT XS_INT64FMT_STR
 #define	XS_FLOATFMT XS_FLOATFMT_STR
 #endif
 
@@ -436,19 +524,46 @@ extern const XS_String XS_PROPERTY;
 #define CDATA_END "]]>"
 
 
-#ifndef XS_STRING_UTF8
+inline LPCXSSTR safe_skip_space(LPCXSSTR s)
+{
+	if (s) {
+		 // strip leading white space
+		while(_istspace(*s))
+			++s;
+
+		return s;
+	} else
+		return XS_EMPTY_STR;
+}
+
+
+#ifdef XS_STRING_UTF8
+
+template<typename T> inline XS_String from_utf8(const T& s)
+{
+	return s;
+}
+
+inline XS_String from_utf8(const char* s, size_t l)
+{
+	return XS_String(s, l);
+}
+
+#else
 
  // from UTF-8 to XS internal string encoding
 inline void assign_utf8(XS_String& s, const char* str, size_t lutf8)
 {
+	// Benutzung von malloc() für Strings größer als BUFFER_LEN
 #ifdef UNICODE
-	LPTSTR buffer = (LPTSTR)alloca(sizeof(TCHAR)*lutf8);
+	TMP_ALLOC(TCHAR, buffer, h, lutf8);
 	int l = MultiByteToWideChar(CP_UTF8, 0, str, (int)lutf8, buffer, (int)lutf8);
 #else
-	LPWSTR wbuffer = (LPWSTR)alloca(sizeof(WCHAR)*lutf8);
+	TMP_ALLOC(WCHAR, wbuffer, hw, lutf8);
 	int l = MultiByteToWideChar(CP_UTF8, 0, str, (int)lutf8, wbuffer, (int)lutf8);
 
-	int bl=2*l; LPSTR buffer = (LPSTR)alloca(bl);
+	int bl = 2*l;
+	TMP_ALLOC(char, buffer, h, bl);
 	l = WideCharToMultiByte(CP_ACP, 0, wbuffer, l, buffer, bl, 0, 0);
 #endif
 
@@ -465,13 +580,15 @@ inline void assign_utf8(XS_String& s, const char* str)
 inline std::string get_utf8(LPCTSTR s, size_t l)
 {
 #ifdef UNICODE
-	size_t bl=2*l; LPSTR buffer = (LPSTR)alloca(bl);
+	size_t bl = 4*l;
+	TMP_ALLOC(char, buffer, h, bl);
 	l = WideCharToMultiByte(CP_UTF8, 0, s, (int)l, buffer, (int)bl, 0, 0);
 #else
-	LPWSTR wbuffer = (LPWSTR)alloca(sizeof(WCHAR)*l);
+	TMP_ALLOC(WCHAR, wbuffer, hw, l);
 	l = MultiByteToWideChar(CP_ACP, 0, s, (int)l, wbuffer, (int)l);
 
-	size_t bl=2*l; LPSTR buffer = (LPSTR)alloca(bl);
+	size_t bl = 4*l;
+	TMP_ALLOC(char, buffer, h, bl);
 	l = WideCharToMultiByte(CP_UTF8, 0, wbuffer, (int)l, buffer, (int)bl, 0, 0);
 #endif
 
@@ -482,10 +599,11 @@ inline std::string get_utf8(LPCTSTR s, size_t l)
  // from XS internal string encoding to UTF-8
 inline std::string get_utf8(const char* s, size_t l)
 {
-	LPWSTR wbuffer = (LPWSTR)alloca(sizeof(WCHAR)*l);
+	TMP_ALLOC(WCHAR, wbuffer, wh, l);
 	l = MultiByteToWideChar(CP_ACP, 0, s, (int)l, wbuffer, (int)l);
 
-	size_t bl=2*l; LPSTR buffer = (LPSTR)alloca(bl);
+	size_t bl = 4*l;
+	TMP_ALLOC(char, buffer, h, bl);
 	l = WideCharToMultiByte(CP_UTF8, 0, wbuffer, (int)l, buffer, (int)bl, 0, 0);
 
 	return std::string(buffer, l);
@@ -498,10 +616,31 @@ inline std::string get_utf8(const XS_String& s)
 	return get_utf8(s.c_str(), s.length());
 }
 
+inline XS_String from_utf8(const char* s)
+{
+	XS_String ret;
+	assign_utf8(ret, s, strlen(s));
+	return ret;
+}
+
+inline XS_String from_utf8(const std::string& s)
+{
+	XS_String ret;
+	assign_utf8(ret, s.c_str(), s.length());
+	return ret;
+}
+
+inline XS_String from_utf8(const char* s, size_t l)
+{
+	XS_String ret;
+	assign_utf8(ret, s, l);
+	return ret;
+}
+
 #endif // XS_STRING_UTF8
 
 extern std::string EncodeXMLString(const XS_String& str, bool cdata=false);
-extern XS_String DecodeXMLString(const std::string& str);
+extern XS_String DecodeXMLString(const std::string& str_utf8);
 
 
 #ifdef __GNUC__
@@ -517,6 +656,7 @@ extern XS_String DecodeXMLString(const std::string& str);
 struct FileHolder
 {
 	FileHolder(LPCTSTR path, LPCTSTR mode)
+	 :	_own_file(true)
 	{
 #ifdef __STDC_WANT_SECURE_LIB__	// secure CRT functions using VS 2005
 		if (_tfopen_s(&_pfile, path, mode) != 0)
@@ -526,14 +666,23 @@ struct FileHolder
 #endif
 	}
 
+	FileHolder(FILE* pfile)
+	 :	_pfile(pfile),
+		_own_file(false)
+	{
+	}
+
 	~FileHolder()
 	{
-		if (_pfile)
+		if (_own_file && _pfile)
 			fclose(_pfile);
 	}
 
+	operator FILE*() {return _pfile;}
+
 protected:
 	FILE*	_pfile;
+	bool	_own_file;
 };
 
  /// input file stream with ANSI/UNICODE file names
@@ -563,9 +712,22 @@ struct tofstream : public std::ostream, FileHolder
 {
 	typedef std::ostream super;
 
-	tofstream(LPCTSTR path)
+	tofstream(LPCTSTR path, LPCTSTR mode=TEXT("wb"))
 	 :	super(&_buf),
-		FileHolder(path, TEXT("wb")),
+		FileHolder(path, mode),
+#ifdef __GNUC__
+		_buf(_pfile, std::ios::out)
+#else
+		_buf(_pfile)
+#endif
+	{
+		if (!_pfile)
+			setstate(badbit);
+	}
+
+	tofstream(FILE* pFile)
+	 :	super(&_buf),
+		FileHolder(pFile),
 #ifdef __GNUC__
 		_buf(_pfile, std::ios::out)
 #else
@@ -660,34 +822,7 @@ inline bool operator==(const XS_String& s1, const char* s2)
 #endif
 
 
- /// XML Error with message and location
-struct XMLError
-{
-	XMLError()
-	 :	_line(0),
-		_column(0),
-		_error_code(0)
-	{
-	}
-
-	std::string str() const;
-	friend std::ostream& operator<<(std::ostream&, const XMLError& err);
-
-	XS_String _message;
-	XS_String _systemId;
-	int _line;
-	int _column;
-	int _error_code;
-};
-
- /// list of XMLError entries
-struct XMLErrorList : public std::list<XMLError>
-{
-	XS_String str() const;
-};
-
-
-#ifdef XMLNODE_LOCATION
+#if defined(XS_NATIVE) || defined(XMLNODE_LOCATION)
  /// location of XML Node including XML file name
 struct XMLLocation
 {
@@ -707,12 +842,70 @@ struct XMLLocation
 
 	std::string str() const;
 
+	const char* get_path() const {return _pdisplay_path? _pdisplay_path: "";}
+	int get_line() const {return _line;}
+	int get_column() const {return _column;}
+
+	void set_path(const char* path)
+	{
+		_pdisplay_path = path;
+		_line = 1;
+		_column = 1;
+	}
+
 protected:
 	const char*	_pdisplay_path;	// character pointer for fast reference
 	int	_line;
 	int	_column;
+
+	friend struct XMLReader;
 };
 #endif
+
+
+ /// XML Error with message and location
+struct XMLError
+{
+	XMLError()
+	 :	_line(0),
+		_column(0),
+		_error_code(0)
+	{
+	}
+
+	XMLError(const char* msg)
+	 :	_line(0),
+		_column(0),
+		_error_code(0),
+		_message(msg)
+	{
+	}
+
+	XMLError(const XMLLocation& location, const char* msg)
+	 :	_systemId(location.get_path()),
+		_line(location.get_line()),
+		_column(location.get_column()),
+		_error_code(0),
+		_message(msg)
+	{
+	}
+
+	std::string str() const;
+
+	friend std::ostream& operator<<(std::ostream&, const XMLError& err);
+
+	std::string _message;
+	std::string _systemId;
+	int _line;
+	int _column;
+	int _error_code;
+};
+
+ /// list of XMLError entries
+struct XMLErrorList : public std::list<XMLError>
+{
+	XS_String str(const char* del="\n") const;
+};
 
 
 enum PRETTY_FLAGS {
@@ -774,11 +967,33 @@ struct DocType
  /// Management of XML file headers and formating
 struct XMLFormat
 {
-	XMLFormat(PRETTY_FLAGS pretty=PRETTY_INDENT, const std::string& xml_version="1.0", const std::string& encoding="utf-8", const DocType& doctype=DocType())
+	XMLFormat(PRETTY_FLAGS pretty=PRETTY_INDENT, const std::string& encoding="utf-8", const DocType& doctype=DocType()
+#ifndef XS_STRICT_XML_1_0
+			, const std::string& xml_version="1.0"
+#endif
+	)
 	 :	_pretty(pretty),
 		_endl("\n"),
-		_version(xml_version),
 		_encoding(encoding),
+		_utf8_bom(false),
+		_inhibit_header(false),
+		_doctype(doctype),
+		_standalone(-1)
+	{
+#ifdef XS_STRICT_XML_1_0
+		_version = "1.0";
+#else
+		_version = xml_version;
+#endif
+	}
+
+	XMLFormat(PRETTY_FLAGS pretty, bool utf8_bom, const DocType& doctype=DocType())
+	 :	_pretty(pretty),
+		_endl("\n"),
+		_version("1.0"),
+		_encoding("utf-8"),
+		_utf8_bom(utf8_bom),
+		_inhibit_header(false),
 		_doctype(doctype),
 		_standalone(-1)
 	{
@@ -791,6 +1006,8 @@ struct XMLFormat
 
 	std::string _version;
 	std::string _encoding;
+	bool		_utf8_bom;
+	bool		_inhibit_header;
 
 	DocType		_doctype;
 
@@ -799,6 +1016,15 @@ struct XMLFormat
 //	std::string _additional;
 
 	int		_standalone;
+};
+
+struct HeaderlessXMLFormat : public XMLFormat
+{
+	HeaderlessXMLFormat(PRETTY_FLAGS pretty=PRETTY_INDENT)
+	 :	XMLFormat(pretty)
+	{
+		_inhibit_header = true;
+	}
 };
 
 
@@ -810,6 +1036,301 @@ enum WRITE_MODE {
 };
 
 
+#if 1
+
+ // XS_StringMap node
+struct XS_SMNode
+{
+	XS_SMNode(const XS_String& key)
+	 :	first(key)
+	{
+	}
+
+	XS_SMNode(const XS_SMNode& other)
+	 :	first(other.first),
+		second(other.second)
+	{
+		if (other._pNext)
+			_pNext = new XS_SMNode(*other._pNext);
+		else
+			_pNext = NULL;
+	}
+
+	XS_String	first;
+	XS_String	second;
+
+	XS_SMNode*	_pNext;
+
+private:
+	 // disallow overwritung
+	void operator=(const XS_SMNode&)
+	{
+	}
+};
+
+ // optimized string map for small numbers of values implemented as sorted linked list
+struct XS_StringMap
+{
+	typedef XS_String key_type;
+	typedef XS_String value_type;
+
+	struct iterator
+	{
+		iterator(XS_SMNode* ptr)
+		 :	_ptr(ptr)
+		{
+		}
+
+		operator bool() const
+		{
+			return _ptr != NULL;
+		}
+
+		XS_SMNode* operator->()
+		{
+			return _ptr;
+		}
+
+		const XS_SMNode* operator->() const
+		{
+			return _ptr;
+		}
+
+		void operator++()
+		{
+			_ptr = _ptr->_pNext;
+		}
+
+		XS_SMNode* ptr()
+		{
+			return _ptr;
+		}
+
+		const XS_SMNode* ptr() const
+		{
+			return _ptr;
+		}
+
+	private:
+		XS_SMNode*	_ptr;
+	};
+
+	struct const_iterator
+	{
+		const_iterator(const XS_SMNode* ptr)
+		 :	_ptr(ptr)
+		{
+		}
+
+		const_iterator(const iterator& it)
+		 :	_ptr(it.ptr())
+		{
+		}
+
+		operator bool() const
+		{
+			return _ptr != NULL;
+		}
+
+		const XS_SMNode* operator->() const
+		{
+			return _ptr;
+		}
+
+		void operator++()
+		{
+			_ptr = _ptr->_pNext;
+		}
+
+		const XS_SMNode* ptr() const
+		{
+			return _ptr;
+		}
+
+	private:
+		const XS_SMNode*	_ptr;
+	};
+
+	XS_StringMap()
+	 :	_firstNode(NULL)
+	{
+	}
+
+	XS_StringMap(const XS_StringMap& other)
+	 :	_firstNode(NULL)
+	{
+		assign(other);
+	}
+
+	void operator=(const XS_StringMap& other)
+	{
+		clear();
+		assign(other);
+	}
+
+	~XS_StringMap()
+	{
+		clear();
+	}
+
+	void clear()
+	{
+		XS_SMNode* node = _firstNode;
+		_firstNode = NULL;
+
+		while(node) {
+			XS_SMNode* pNext = node->_pNext;
+			delete node;
+			node = pNext;
+		}
+	}
+
+	iterator begin()
+	{
+		return _firstNode;
+	}
+
+	const_iterator begin() const
+	{
+		return _firstNode;
+	}
+
+	iterator end()
+	{
+		return NULL;
+	}
+
+	const_iterator end() const
+	{
+		return NULL;
+	}
+
+	iterator find(const key_type& key)
+	{
+		for(iterator node=_firstNode; node; node=node->_pNext) {
+			int c = node->first.compare(key);
+
+			if (c == 0)
+				return node;
+			else if (c > 0)
+				break;
+		}
+
+		return NULL;
+	}
+
+	const_iterator find(const key_type& key) const
+	{
+		for(const_iterator node=_firstNode; node; node=node->_pNext) {
+			int c = node->first.compare(key);
+
+			if (c == 0)
+				return node;
+			else if (c > 0)
+				break;
+		}
+
+		return NULL;
+	}
+
+	value_type& operator[](const key_type& key)
+	{
+		iterator last = NULL;
+		iterator node = _firstNode;
+
+		for(; node; node=(last=node)->_pNext) {
+			int c = node->first.compare(key);
+
+			if (c == 0)
+				break; // key matched
+			else if (c > 0) {
+				node = NULL;
+				break;
+			}
+		}
+
+		if (!node) {
+			 // insert a new node into the linked list
+			node = new XS_SMNode(key);
+
+			if (last) {
+				node->_pNext = last->_pNext;
+				last->_pNext = node.ptr();
+			} else {
+				node->_pNext = _firstNode;
+				_firstNode = node.ptr();
+			}
+		}
+
+		return node->second;
+	}
+
+	bool erase(const key_type& key)
+	{
+		iterator last = NULL;
+		iterator node = _firstNode;
+
+		for(; node; node=(last=node)->_pNext) {
+			int c = node->first.compare(key);
+
+			if (c == 0) {
+				 // remove the node from linked list
+				if (last)
+					last->_pNext = node->_pNext;
+				else
+					_firstNode = NULL;
+
+				delete node.ptr();
+
+				return true;
+			} else if (c > 0)
+				break;
+		}
+
+		return false;	// key not found
+	}
+
+	bool operator==(const XS_StringMap& other) const
+	{
+		const_iterator it1 = _firstNode;
+		const_iterator it2 = other._firstNode;
+
+		while(it1 || it2) {
+			if (!it1 || !it2)
+				return false;
+
+			if (it1->first != it2->first)
+				return false;
+
+			if (it1->second != it2->second)
+				return false;
+		}
+
+		return !it1 && !it2;
+	}
+
+	bool operator!=(const XS_StringMap& other) const
+	{
+		return !operator==(other);
+	}
+
+private:
+	XS_SMNode*	_firstNode;
+
+	void assign(const XS_StringMap& other)
+	{
+		if (other._firstNode)
+			_firstNode = new XS_SMNode(*other._firstNode);
+	}
+};
+
+#else
+
+typedef std::map<XS_String, XS_String> XS_StringMap;
+
+#endif
+
+
 struct XMLNode;
 
 struct XPathElement
@@ -817,7 +1338,9 @@ struct XPathElement
 	XPathElement() : _child_idx(-1) {}
 
 	XPathElement(const XS_String& child_name, int child_idx=-1)
-	 :	_child_name(child_name), _child_idx(child_idx) {}
+	 :	_child_name(child_name), _child_idx(child_idx)
+	{
+	}
 
 	XPathElement(const XS_String& child_name, int child_idx, const XS_String& attr_name, const XS_String& attr_value)
 	 :	_child_name(child_name), _child_idx(child_idx)
@@ -828,10 +1351,10 @@ struct XPathElement
 	XS_String	_child_name;
 	int			_child_idx;
 
-	typedef std::map<XS_String, XS_String> MAPATTR; // maps attribute names to its value
+	typedef XS_StringMap MAPATTR; // maps attribute names to its value
 	MAPATTR		_mAttrAndAttr;	// map to handle AND conditions
 
-	const char* parse(const char* path);
+	LPCXSSTR parse(LPCXSSTR path);
 
 	XMLNode* find(XMLNode* node) const;
 	const XMLNode* const_find(const XMLNode* node) const;
@@ -842,10 +1365,10 @@ struct XPathElement
 struct XPath : std::list<XPathElement>
 {
 	XPath() : _absolute(false) {}
-	XPath(const char* path) {init(path);}
-	XPath(const std::string path) {init(path.c_str());}
+	XPath(LPCXSSTR path) {init(path);}
+	XPath(const XS_String& path) {init(path.c_str());}
 
-	void	init(const char* path);
+	void	init(LPCXSSTR path);
 
 	bool	_absolute;
 };
@@ -857,9 +1380,9 @@ struct XMLNode : public XS_String
 #if defined(UNICODE) && !defined(XS_STRING_UTF8)
 	 /// map of XML node attributes
 	 // optimized read access without temporary A/U conversion when using ASCII attribute names
-	struct AttributeMap : public std::map<XS_String, XS_String>
+	struct AttributeMap : public XS_StringMap
 	{
-		typedef std::map<XS_String, XS_String> super;
+		typedef XS_StringMap super;
 
 		const_iterator find(const char* x) const
 		{
@@ -892,7 +1415,7 @@ struct XMLNode : public XS_String
 	};
 #else
 	 /// map of XML node attributes
-	struct AttributeMap : public std::map<XS_String, XS_String>
+	struct AttributeMap : public XS_StringMap
 	{
 		XS_String get(const char* x, LPCXSSTR def=XS_EMPTY_STR) const
 		{
@@ -1013,6 +1536,9 @@ struct XMLNode : public XS_String
 
 	enum COPY_FLAGS {COPY_NOCHILDREN};
 
+#ifdef _MSC_VER
+#pragma warning(disable: 4100)	// unreferenced formal parameter
+#endif
 	XMLNode(const XMLNode& other, COPY_FLAGS copy_no_children)
 	 :	XS_String(other),
 		_attributes(other._attributes),
@@ -1025,7 +1551,7 @@ struct XMLNode : public XS_String
 #endif
 		_cdata_content(false)
 	{
-//		assert(copy_no_children==COPY_NOCHILDREN);
+		assert(copy_no_children==COPY_NOCHILDREN);
 	}
 
 	virtual ~XMLNode()
@@ -1196,6 +1722,12 @@ struct XMLNode : public XS_String
 	XS_String get_content() const
 	{
 		return DecodeXMLString(_content);
+	}
+
+	 /// read element node content as encoded string
+	std::string get_encoded_content() const
+	{
+		return _content;
 	}
 
 	 /// read content of a subnode specified by an XPath expression
@@ -1609,8 +2141,10 @@ struct XMLPos
 			_cur = _stack.top();
 			_stack.pop();
 			return true;
-		} else
+		} else {
+			assert(!_stack.empty());
 			return false;
+		}
 	}
 
 	 /// go down to first child
@@ -1638,7 +2172,7 @@ struct XMLPos
 	}
 
 	 /// iterate to the next matching child
-	bool iterate(const XS_String& child_name, size_t& cnt)
+	bool iterate(const XS_String& child_name, int& cnt)
 	{
 		XMLNode* node = XPathElement(child_name, cnt).find(_cur);
 
@@ -1867,8 +2401,10 @@ struct const_XMLPos
 			_cur = _stack.top();
 			_stack.pop();
 			return true;
-		} else
+		} else {
+			assert(!_stack.empty());
 			return false;
+		}
 	}
 
 	 /// go down to first child
@@ -1896,7 +2432,7 @@ struct const_XMLPos
 	}
 
 	 /// iterate to the next matching child
-	bool iterate(const XS_String& child_name, size_t& cnt)
+	bool iterate(const XS_String& child_name, int& cnt)
 	{
 		const XMLNode* node = XPathElement(child_name, cnt).const_find(_cur);
 
@@ -1942,7 +2478,7 @@ protected:
 
 
 #ifdef _MSC_VER
-#pragma warning(disable: 4355)
+#pragma warning(disable: 4355)	// 'this' : used in base member initializer list 
 #endif
 
  /// XML reader base class
@@ -2013,7 +2549,7 @@ public:
 #ifndef XS_USE_XERCES
 	void read();
 
-	std::string	get_position() const;
+	std::string	get_position() const {return _location.str();}
 #endif
 	const XMLFormat& get_format() const {return _format;}
 	const char* get_endl() const {return _endl_defined? _format._endl: "\n";}
@@ -2023,7 +2559,10 @@ public:
 
 	void clear_errors() {_errors.clear(); _warnings.clear();}
 
-#ifdef XMLNODE_LOCATION
+#ifdef XS_NATIVE
+	XMLLocation get_location() const {return _location;}
+	void setSystemId(const char* systemId) {_location.set_path(systemId);}
+#elif defined(XMLNODE_LOCATION)
 	const char* _display_path;	// character pointer for fast reference in XMLLocation
 
 #ifdef XS_USE_XERCES
@@ -2031,6 +2570,7 @@ public:
 #endif
 
 	XMLLocation get_location() const;
+	void setSystemId(const char* systemId) {_display_path = systemId;}
 #endif
 
 	std::string	get_encoded_content() const {return _content;}
@@ -2047,13 +2587,15 @@ protected:
 	XMLFormat	_format;
 	bool	_endl_defined;
 
-#ifdef XS_USE_XERCES
-	//@@
-#elif defined(XS_USE_EXPAT)
-	virtual int read_buffer(char* buffer, int len) = 0;
-#else
+#ifdef XS_NATIVE
+	XMLLocation	_location;
+
 	virtual int get() = 0;
 	int		eat_endl();
+#elif defined(XS_USE_XERCES)
+	//TODO
+#elif defined(XS_USE_EXPAT)
+	virtual int read_buffer(char* buffer, int len) = 0;
 #endif
 
 	void	finish_read();
@@ -2123,23 +2665,44 @@ struct XMLReader : public XMLReaderBase
 {
 	XMLReader(XMLNode* node, std::istream& in)
 	 :	XMLReaderBase(node),
-		_in(in)
+		_in(in),
+		_last_crlf(0)
 	{
 	}
 
 	 /// read one character from XML stream
 	int get()
 	{
-		return _in.get();
+		int c = _in.get();
+
+//		 // increment line counter on LF
+//		if (c == '\n') {
+//			_location._column = 1;
+//			++_location._line;
+		 // increment line counter on LF, CR, CR/LF or LF/CR line endings
+		if (c=='\n' || c=='\r') {
+			if (!_last_crlf || c==_last_crlf) {
+				_location._column = 1;
+				++_location._line;
+				_last_crlf = c;
+			} else
+				_last_crlf = 0;
+		} else {
+			++_location._column;
+			_last_crlf = 0;
+		}
+
+		return c;
 	}
 
 protected:
 	std::istream&	_in;
+	int	_last_crlf;
 };
 
 struct ReadBuffer
 {
-	ReadBuffer();
+	ReadBuffer(XMLErrorList& errors, XMLLocation& location);
 	~ReadBuffer();
 
 	void	reset();
@@ -2150,8 +2713,11 @@ struct ReadBuffer
 	bool	has_CDEnd() const;
 	XS_String get_tag() const;
 	void	get_attributes(XMLNode::AttributeMap& attributes) const;
+	XMLLocation& get_location() const {return _location;}
 
 protected:
+	XMLErrorList& _errors;
+	XMLLocation& _location;
 	char*	_buffer;
 	char*	_wptr;
 	size_t	_len;
@@ -2162,8 +2728,8 @@ struct ParseContext
 {
 	ParseContext(XMLReaderBase& reader);
 
+	void	read_bom();
 	bool	proceed();
-
 	int		process_next(int c);
 
 	XMLReaderBase& _reader;
@@ -2349,7 +2915,9 @@ struct XMLDoc : public XMLNode
 
 	bool read(XMLReaderBase& reader, const std::string& display_path)
 	{
-#ifdef XMLNODE_LOCATION
+#ifdef XS_NATIVE
+		reader.setSystemId(display_path.c_str());
+#elif defiend(XMLNODE_LOCATION)
 		 // make a string copy to handle temporary string objects
 		_display_path = display_path;
 		reader._display_path = _display_path.c_str();
@@ -2420,6 +2988,7 @@ struct XMLStateReader : public XMLReader
 		XSS_NONE,
 		XSS_START_ELEMENT,
 		XSS_END_ELEMENT,
+		XSS_ELEMENT,
 		XSS_CHARACTERS,
 	//	XSS_COMMENT,
 	//	XSS_SPACE,
@@ -2468,6 +3037,11 @@ struct XMLStreamReader
 		_level(0),
 		_node(XS_EMPTY_STR)
 	{
+#ifdef UNICODE
+		_state_rdr._parse_ctx._reader.setSystemId(std::string(XS_String(path)).c_str());
+#else
+		_state_rdr._parse_ctx._reader.setSystemId(path);
+#endif
 	}
 
 	~XMLStreamReader()
@@ -2517,7 +3091,7 @@ struct XMLStreamReader
 
 	/**
 	 * Search for child and go down.
-	 * @param name
+	 * @param child_name
 	 * @return
 	 */
 	bool go_down(const XS_String& child_name)
@@ -2543,7 +3117,13 @@ struct XMLStreamReader
 	 */
 	bool back()
 	{
-		return find_node(NULL, -1, _level+1, false);
+		if (find_node(NULL, -1, _level+1, false))
+//		if (find_node(NULL, _level-1, _level-1, false))
+			return true;
+		else {
+			assert(_level>=0); // tried to move out of the tree hierarchy
+			return false;
+		}
 	}
 
 	/**
@@ -2601,6 +3181,8 @@ struct XMLStreamReader
 
 	bool	find_relative(const XPath& xpath);
 
+	const XMLErrorList& get_errors() const {return _state_rdr.get_errors();}
+
 	int		_level;
 
 private:
@@ -2613,7 +3195,7 @@ protected:
 
 	XMLNode	_node;
 
-//@@protected:	XS_String	_instructions;
+//protected:	XS_String	_instructions;
 
 	virtual void StartElementHandler(const XS_String& name, const XMLNode::AttributeMap& attr);
 	virtual void EndElementHandler();
@@ -2839,8 +3421,10 @@ struct XMLBool
 
 	XMLBool(LPCXSSTR value, bool def=false)
 	{
-		if (value && *value)//@@ also handle white space and return def instead of false
-			_value = !XS_icmp(value, XS_TRUE);
+		LPCXSSTR p = safe_skip_space(value);
+
+		if (*p)
+			_value = !XS_nicmp(p, XS_TRUE, 4); //_tcslen(XS_TRUE_STR)=4
 		else
 			_value = def;
 	}
@@ -2927,10 +3511,17 @@ struct XMLInt
 	{
 	}
 
+	XMLInt(size_t value)
+	 :	_value((int)value)
+	{
+	}
+
 	XMLInt(LPCXSSTR value, int def=0)
 	{
-		if (value && *value)//@@ also handle white space and return def instead of 0
-			_value = XS_toi(value);
+		LPCXSSTR p = safe_skip_space(value);
+
+		if (*p)
+			_value = XS_toi(p);
 		else
 			_value = def;
 	}
@@ -2998,6 +3589,92 @@ protected:
 };
 
 
+ /// type converter for integer data
+struct XMLInt64
+{
+	XMLInt64(INT64 value)
+	 :	_value(value)
+	{
+	}
+
+	XMLInt64(UINT64 value)
+	 :	_value((INT64)value)
+	{
+	}
+
+	XMLInt64(LPCXSSTR value, INT64 def=0)
+	{
+		LPCXSSTR p = safe_skip_space(value);
+
+		if (*p)
+			_value = XS_toi64(p);
+		else
+			_value = def;
+	}
+
+	XMLInt64(const XMLNode* node, const XS_String& attr_name, INT64 def=0)
+	{
+		const XS_String& value = node->get(attr_name);
+
+		if (!value.empty())
+			_value = XS_toi64(value.c_str());
+		else
+			_value = def;
+	}
+
+	operator INT64() const
+	{
+		return _value;
+	}
+
+	operator XS_String() const
+	{
+		XS_CHAR buffer[64];
+		XS_snprintf(buffer, COUNTOF(buffer), XS_INT64FMT, _value);
+		return XS_String(buffer);
+	}
+
+protected:
+	INT64 _value;
+
+private:
+	void operator=(const XMLInt64&); // disallow assignment operations
+};
+
+ /// type converter for integer data with write access
+struct XMLInt64Ref
+{
+	XMLInt64Ref(XMLNode* node, const XS_String& attr_name, INT64 def=0)
+	 :	_ref((*node)[attr_name])
+	{
+		if (_ref.empty())
+			assign(def);
+	}
+
+	XMLInt64Ref& operator=(INT64 value)
+	{
+		assign(value);
+
+		return *this;
+	}
+
+	operator INT64() const
+	{
+		return XS_toi64(_ref.c_str());
+	}
+
+	void assign(INT64 value)
+	{
+		XS_CHAR buffer[64];
+		XS_snprintf(buffer, COUNTOF(buffer), XS_INT64FMT, value);
+		_ref.assign(buffer);
+	}
+
+protected:
+	XS_String& _ref;
+};
+
+
  /// type converter for numeric data
 struct XMLDouble
 {
@@ -3008,10 +3685,11 @@ struct XMLDouble
 
 	XMLDouble(LPCXSSTR value, double def=0.)
 	{
+		LPCXSSTR p = safe_skip_space(value);
 		LPTSTR end;
 
-		if (value && *value)//@@ also handle white space and return def instead of 0
-			_value = XS_tod(value, &end);
+		if (*p)
+			_value = XS_tod(p, &end);
 		else
 			_value = def;
 	}
@@ -3387,6 +4065,14 @@ struct XMLWriter
 		format.print_header(_out, false);	// _format._endl is printed in write_pre()
 	}
 
+	XMLWriter(FILE* pFile, const XMLFormat& format=XMLFormat())
+	 :	_pofstream(new tofstream(pFile)),
+		_out(*_pofstream),
+		_format(format)
+	{
+		format.print_header(_out, false);	// _format._endl is printed in write_pre()
+	}
+
 	XMLWriter(LPCTSTR path, const XMLFormat& format=XMLFormat())
 	 :	_pofstream(new tofstream(path)),
 		_out(*_pofstream),
@@ -3428,6 +4114,12 @@ struct XMLWriter
 		return _stack.top()._attributes[attr_name];
 	}
 
+	void set_attributes(const XMLNode::AttributeMap& attrs)
+	{
+		if (!_stack.empty())
+			_stack.top()._attributes = attrs;
+	}
+
 	 /// set element node content
 	void set_content(const XS_String& s, bool cdata=false)
 	{
@@ -3449,6 +4141,9 @@ struct XMLWriter
 			set_content(content);
 		back();
 	}
+
+	 /// direct string output
+	void write(const std::string& s);
 
 	 // public for access in StackEntry
 	enum WRITESTATE {
@@ -3485,6 +4180,10 @@ protected:
 
 
 }	// namespace XMLStorage
+
+#ifdef _MSC_VER
+#pragma warning(pop) // C4512: assignment operator could not be generated
+#endif
 
 #define _XMLSTORAGE_H
 #endif // _XMLSTORAGE_H
